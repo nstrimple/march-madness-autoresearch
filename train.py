@@ -27,6 +27,88 @@ TOURNEY_WEIGHT = 4.0
 MODEL_PATH = "model.joblib"
 
 
+# ── Efficiency Stats ────────────────────────────────────────────────────────
+EFFICIENCY_COLS = [
+    "off_eff", "def_eff", "net_eff", "efg_pct", "opp_efg_pct",
+    "to_rate", "opp_to_rate", "or_rate", "ft_rate", "tempo",
+]
+
+
+def compute_efficiency_stats(detailed_results):
+    """Compute per-team per-season efficiency metrics from detailed results."""
+    rows = []
+    for _, g in detailed_results.iterrows():
+        for is_winner in [True, False]:
+            pf = "W" if is_winner else "L"
+            op = "L" if is_winner else "W"
+            score = int(g[f"{pf}Score"])
+            opp_score = int(g[f"{op}Score"])
+            fga = int(g[f"{pf}FGA"])
+            fgm = int(g[f"{pf}FGM"])
+            fga3 = int(g[f"{pf}FGA3"])
+            fgm3 = int(g[f"{pf}FGM3"])
+            fta = int(g[f"{pf}FTA"])
+            orb = int(g[f"{pf}OR"])
+            to = int(g[f"{pf}TO"])
+            opp_fga = int(g[f"{op}FGA"])
+            opp_fgm = int(g[f"{op}FGM"])
+            opp_fga3 = int(g[f"{op}FGA3"])
+            opp_fgm3 = int(g[f"{op}FGM3"])
+            opp_fta = int(g[f"{op}FTA"])
+            opp_orb = int(g[f"{op}OR"])
+            opp_to = int(g[f"{op}TO"])
+
+            # Possessions estimate (Kenpom-style)
+            poss = fga - orb + to + 0.475 * fta
+            opp_poss = opp_fga - opp_orb + opp_to + 0.475 * opp_fta
+            avg_poss = (poss + opp_poss) / 2.0
+            avg_poss = max(avg_poss, 1.0)
+
+            off_eff = score / avg_poss * 100
+            def_eff = opp_score / avg_poss * 100
+            net_eff = off_eff - def_eff
+
+            # Effective FG%
+            efg_pct = (fgm + 0.5 * fgm3) / fga if fga > 0 else 0
+            opp_efg_pct = (opp_fgm + 0.5 * opp_fgm3) / opp_fga if opp_fga > 0 else 0
+
+            # Turnover rate, OR rate, FT rate
+            to_rate = to / avg_poss if avg_poss > 0 else 0
+            opp_to_rate = opp_to / avg_poss if avg_poss > 0 else 0
+            drb = int(g[f"{op}DR"]) if f"{op}DR" in g else 0
+            or_rate = orb / (orb + drb) if (orb + drb) > 0 else 0
+            ft_rate = fta / fga if fga > 0 else 0
+
+            rows.append({
+                "Season": int(g["Season"]),
+                "TeamID": int(g[f"{pf}TeamID"]),
+                "off_eff": off_eff,
+                "def_eff": def_eff,
+                "net_eff": net_eff,
+                "efg_pct": efg_pct,
+                "opp_efg_pct": opp_efg_pct,
+                "to_rate": to_rate,
+                "opp_to_rate": opp_to_rate,
+                "or_rate": or_rate,
+                "ft_rate": ft_rate,
+                "tempo": avg_poss,
+            })
+
+    df = pd.DataFrame(rows)
+    agg = df.groupby(["Season", "TeamID"]).mean(numeric_only=True).reset_index()
+    return agg
+
+
+def _make_efficiency_lookup(eff_stats):
+    """Build dict lookup from efficiency stats DataFrame."""
+    lookup = {}
+    for _, r in eff_stats.iterrows():
+        lookup[(int(r["Season"]), int(r["TeamID"]))] = {
+            c: r[c] for c in EFFICIENCY_COLS
+        }
+    return lookup
+
+
 # ── Massey Ordinals ─────────────────────────────────────────────────────────
 def compute_massey_ranks():
     """Load Massey Ordinals and compute average rank across all systems at end of regular season."""
@@ -135,7 +217,7 @@ def _update_elo(elo, row):
 
 
 # ── Feature Engineering ──────────────────────────────────────────────────────
-def _build_feature_row(season, t1, t2, elo_snapshot, seeds_lookup, stats_lookup, winpct_lookup, is_mens, massey_lookup=None):
+def _build_feature_row(season, t1, t2, elo_snapshot, seeds_lookup, stats_lookup, winpct_lookup, is_mens, massey_lookup=None, eff_lookup=None):
     """Build a single feature vector for a T1 vs T2 matchup."""
     row = {"Season": season, "T1": t1, "T2": t2, "is_mens": int(is_mens)}
 
@@ -194,14 +276,30 @@ def _build_feature_row(season, t1, t2, elo_snapshot, seeds_lookup, stats_lookup,
             row[f"T2_{col}"] = np.nan
             row[f"{col}_diff"] = np.nan
 
+    # Efficiency stats
+    if eff_lookup is not None:
+        t1_eff = eff_lookup.get((season, t1), {})
+        t2_eff = eff_lookup.get((season, t2), {})
+        for col in EFFICIENCY_COLS:
+            v1 = t1_eff.get(col, np.nan)
+            v2 = t2_eff.get(col, np.nan)
+            row[f"T1_{col}"] = v1
+            row[f"T2_{col}"] = v2
+            if pd.notna(v1) and pd.notna(v2):
+                row[f"{col}_diff"] = v1 - v2
+            else:
+                row[f"{col}_diff"] = np.nan
+
     return row
 
 
 # ── Training Data Construction ───────────────────────────────────────────────
-def build_training_data(data, elo_m, elo_w, stats_m, stats_w, seeds_m, seeds_w, wp_m, wp_w, massey_lookup=None):
+def build_training_data(data, elo_m, elo_w, stats_m, stats_w, seeds_m, seeds_w, wp_m, wp_w, massey_lookup=None, eff_m=None, eff_w=None):
     """Build training matrix from regular season + tournament games for both genders."""
     seeds_look_m, stats_look_m, wp_look_m = _make_lookups(seeds_m, stats_m, wp_m)
     seeds_look_w, stats_look_w, wp_look_w = _make_lookups(seeds_w, stats_w, wp_w)
+    eff_look_m = _make_efficiency_lookup(eff_m) if eff_m is not None else None
+    eff_look_w = _make_efficiency_lookup(eff_w) if eff_w is not None else None
 
     rows = []
     for gender, label in [("mens", True), ("womens", False)]:
@@ -209,6 +307,7 @@ def build_training_data(data, elo_m, elo_w, stats_m, stats_w, seeds_m, seeds_w, 
         seeds_look = seeds_look_m if label else seeds_look_w
         stats_look = stats_look_m if label else stats_look_w
         wp_look = wp_look_m if label else wp_look_w
+        eff_look = eff_look_m if label else eff_look_w
 
         compact = data[f"{gender}_compact"]
         for _, g in compact.iterrows():
@@ -217,7 +316,7 @@ def build_training_data(data, elo_m, elo_w, stats_m, stats_w, seeds_m, seeds_w, 
             t1, t2 = min(w_id, l_id), max(w_id, l_id)
             target = 1.0 if t1 == w_id else 0.0
 
-            row = _build_feature_row(s, t1, t2, elo_snap, seeds_look, stats_look, wp_look, label, massey_lookup)
+            row = _build_feature_row(s, t1, t2, elo_snap, seeds_look, stats_look, wp_look, label, massey_lookup, eff_look)
             row["target"] = target
             row["weight"] = 1.0
             rows.append(row)
@@ -229,7 +328,7 @@ def build_training_data(data, elo_m, elo_w, stats_m, stats_w, seeds_m, seeds_w, 
             t1, t2 = min(w_id, l_id), max(w_id, l_id)
             target = 1.0 if t1 == w_id else 0.0
 
-            row = _build_feature_row(s, t1, t2, elo_snap, seeds_look, stats_look, wp_look, label, massey_lookup)
+            row = _build_feature_row(s, t1, t2, elo_snap, seeds_look, stats_look, wp_look, label, massey_lookup, eff_look)
             row["target"] = target
             row["weight"] = TOURNEY_WEIGHT
             row["is_tourney"] = 1
@@ -293,9 +392,13 @@ def train_and_predict(data):
 
     massey_lookup = compute_massey_ranks()
 
+    print("  Computing efficiency stats...")
+    eff_m = compute_efficiency_stats(data["mens_detailed"])
+    eff_w = compute_efficiency_stats(data["womens_detailed"])
+
     print("  Building training data...")
     train_df = build_training_data(
-        data, elo_m, elo_w, stats_m, stats_w, seeds_m, seeds_w, wp_m, wp_w, massey_lookup
+        data, elo_m, elo_w, stats_m, stats_w, seeds_m, seeds_w, wp_m, wp_w, massey_lookup, eff_m, eff_w
     )
     feature_cols = get_feature_cols(train_df)
     print(f"  Samples: {len(train_df):,}  Features: {len(feature_cols)}")
