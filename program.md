@@ -30,7 +30,7 @@ All CSV files are in the project root directory:
 - `MRegularSeasonCompactResults.csv` / `WRegularSeasonCompactResults.csv` — W/L results
 - `MNCAATourneyCompactResults.csv` / `WNCAATourneyCompactResults.csv` — historical tournament outcomes
 - `MNCAATourneySeeds.csv` / `WNCAATourneySeeds.csv` — tournament seeding
-- `MMasseyOrdinals.csv` — external ranking systems (~129 MB, currently UNUSED — high-value target)
+- `MMasseyOrdinals.csv` — external ranking systems (~129 MB, now in use — avg + elite system ranks)
 - `MTeamConferences.csv` / `WTeamConferences.csv` — conference membership
 - `MTeamCoaches.csv` — coaching data
 - `MGameCities.csv` / `WGameCities.csv` — game locations
@@ -48,35 +48,74 @@ Typical runtime: ~1-2 minutes. Time budget: 3 minutes max.
 
 **What you CANNOT do:**
 - Modify `prepare.py`. It is read-only. It contains the fixed evaluation, data loading, season stats, and constants.
-- Modify `program.md` or `CLAUDE.md`.
+- Modify `CLAUDE.md`.
+- Modify `program.md` **except** for the experiment backlog section (you SHOULD update that after each experiment).
 - Install new packages. You can only use what's already installed: pandas, numpy, scikit-learn, xgboost, lightgbm, matplotlib, seaborn, joblib.
 - Modify the evaluation harness. The `evaluate()` function in `prepare.py` is the ground truth metric.
 
 **The goal is simple: get the lowest val_logloss.**
 
-### High-value experimentation axes
+### Experiment backlog
 
-Roughly ordered by expected impact:
+This is a living list. After each experiment (keep or discard), reflect on what you learned, then **propose 1–3 new experiment ideas** and append them to the bottom of this backlog. Cross off or annotate ideas that have been tried. The goal is to always have a rich queue of untried ideas so you never stall.
 
-1. **Massey Ordinals** (`MMasseyOrdinals.csv`, ~129 MB) — 100+ external ranking systems (Sagarin, KenPom, BPI, etc.). Currently completely unused. This is likely the single biggest improvement available. Key columns: `Season, RankingDayNum, SystemName, TeamID, OrdinalRank`. Use rankings near end of regular season (DayNum ~133). Try: best single system, average across systems, weighted composite.
+#### Feature engineering
+- [x] **Massey Ordinals — all-system average** — avg/median/best rank across 197 systems. ✅ kept
+- [x] **Massey Ordinals — elite systems** — avg rank from POM, SAG, MOR, COL, BPI, RPI only. ✅ kept (0.490)
+- [x] **Massey Ordinals — individual elite systems** — each as separate feature. ❌ hurt (0.495)
+- [x] **Efficiency metrics** — off/def efficiency, eFG%, TO rate, OR rate, FT rate, tempo. ✅ kept
+- [x] **Recent form** — last 10 games stats. ❌ hurt (0.498)
+- [x] **Conference strength** — avg ELO of conference, SOS adjustments. ❌ hurt (0.497)
+- [ ] **Strength of schedule** — average opponent ELO or Massey rank faced during regular season
+- [ ] **Coach tournament experience** — `MTeamCoaches.csv` — years coaching, prior tournament appearances, career tournament wins
+- [ ] **Seed × ELO interaction** — multiply seed_diff × elo_diff, seed × massey_rank combos
+- [ ] **Win streak going into tournament** — length of current win/loss streak at end of regular season
+- [ ] **Road/neutral record** — win% in away/neutral games only (tournament is neutral site)
+- [ ] **Close game performance** — win% in games decided by ≤5 points (poise under pressure)
+- [ ] **Scoring variance** — std dev of points scored (consistency metric)
+- [ ] **Massey rank trajectory** — rank improvement from mid-season to end-of-season (momentum)
 
-2. **Advanced stats / efficiency metrics** — Compute possessions, offensive/defensive efficiency (points per possession), tempo, effective FG%, turnover rate, offensive rebound rate. These are much more predictive than raw box scores.
+#### Model architecture
+- [x] **LightGBM defaults** — ❌ hurt (0.495)
+- [x] **Ensemble: XGB + LightGBM 50/50 blend** — ❌ hurt (0.493)
+- [ ] **LightGBM tuned** — match XGB-style params, tune num_leaves separately
+- [ ] **Ensemble: XGB + LightGBM 70/30 blend** — XGB-heavy since it's stronger alone
+- [ ] **Logistic regression** — on top ~10 features only (simple baseline to understand feature importance)
+- [ ] **Ensemble: XGB + logistic regression blend** — combine tree model with linear model for diversity
+- [ ] **Stacking** — train a meta-learner on out-of-fold predictions from XGB + LightGBM + LogReg
+- [ ] **Neural network** — simple MLP via sklearn MLPClassifier on key features
+- [ ] **Separate men's/women's models** — train two independent models instead of one with is_mens flag
 
-3. **Recent form** — Last 5 or 10 games vs. full season averages. Teams that are hot going into the tournament perform differently.
+#### Hyperparameter tuning
+- [x] **XGB depth=4 lr=0.03 n=800 + regularization** — ✅ kept
+- [ ] **XGB lower lr=0.01 n=1500** — slower learning, more trees
+- [ ] **XGB depth=3** — shallower trees for less overfitting
+- [ ] **XGB depth=5 or 6** — deeper trees to capture more interactions
+- [ ] **XGB subsample=0.6 colsample=0.6** — more aggressive subsampling
+- [ ] **Early stopping** — use validation set to stop training (avoid overfitting tree count)
+- [ ] **Bayesian-style sweep** — try 5 random param combos and keep the best
 
-4. **ELO parameter tuning** — K factor, season regression, home court bonus, margin-of-victory scaling. Small changes here can meaningfully shift predictions.
+#### Data strategy
+- [x] **Tournament weight = 6.0** — ❌ hurt (0.496)
+- [ ] **Tournament weight = 2.0** — less emphasis on tournament games in training
+- [ ] **Recency weighting** — weight recent seasons (2018+) higher than older seasons
+- [ ] **Drop pre-2010 data** — old seasons may have different dynamics, hurt more than help
+- [ ] **Tournament-only training** — train exclusively on historical tournament games
+- [ ] **Seed-based prior blending** — blend model output with historical seed-matchup win rates
 
-5. **Conference strength** — Use `MTeamConferences.csv` to derive conference-level features (avg ELO of conference, conference tournament results, SOS adjustments).
+#### ELO tuning
+- [x] **K=32, season_regression=0.80** — ❌ hurt (0.504)
+- [ ] **K=15, season_regression=0.80** — slower adaptation, more carryover
+- [ ] **Remove home court bonus entirely** — tournament is neutral site, HCA may add noise
+- [ ] **Margin-of-victory cap = 1.5** — reduce influence of blowouts on ELO
 
-6. **Model selection** — Try LightGBM (often faster + better), logistic regression on key features, or simple ensembles. Stacking models.
-
-7. **Hyperparameter tuning** — XGBoost depth, learning rate, regularization, n_estimators, subsample.
-
-8. **Data weighting** — Tournament game weight, recency weighting (more recent seasons matter more), different weights for different rounds.
-
-9. **Interaction features** — Style matchup features (e.g., fast team vs slow team), seed × ELO interactions.
-
-10. **Coach data** — `MTeamCoaches.csv` — coach tournament experience, years at school.
+#### Radical / creative
+- [x] **Use only diff features + key absolutes** — ❌ hurt (0.494)
+- [ ] **Feature selection via importance** — run one model, drop bottom 50% features by importance, retrain
+- [ ] **Prediction calibration** — apply Platt scaling or isotonic regression to final predictions
+- [ ] **Target smoothing** — use soft labels (0.1/0.9) instead of hard (0/1) for training
+- [ ] **Matchup-style features** — fast team vs slow team (tempo diff × eFG diff interactions)
+- [ ] **Conference tournament results** — `MConferenceTourneyGames.csv` — how team performed in conf tourney
 
 ### Simplicity criterion
 
@@ -132,14 +171,16 @@ The experiment runs on a dedicated branch (e.g. `autoresearch/mar16`).
 LOOP FOREVER:
 
 1. Look at the git state: the current branch/commit we're on
-2. Tune `train.py` with an experimental idea by directly hacking the code.
-3. git commit
-4. Run the experiment: `python train.py > run.log 2>&1` (redirect everything — do NOT use tee or let output flood your context)
-5. Read out the results: `grep "^val_logloss:" run.log`
-6. If the grep output is empty, the run crashed. Run `tail -n 50 run.log` to read the Python stack trace and attempt a fix. If you can't get things to work after more than a few attempts, give up.
-7. Record the results in the tsv (NOTE: do not commit the results.tsv file, leave it untracked by git)
-8. If val_logloss improved (lower), you "advance" the branch, keeping the git commit
-9. If val_logloss is equal or worse, you git reset back to where you started
+2. **Pick an experiment** from the backlog in the "Experiment backlog" section above. Prefer untried ideas. Consider what you've learned from prior results to guide your choice.
+3. Tune `train.py` with the experimental idea by directly hacking the code.
+4. git commit
+5. Run the experiment: `python train.py > run.log 2>&1` (redirect everything — do NOT use tee or let output flood your context)
+6. Read out the results: `grep "^val_logloss:" run.log`
+7. If the grep output is empty, the run crashed. Run `tail -n 50 run.log` to read the Python stack trace and attempt a fix. If you can't get things to work after more than a few attempts, give up.
+8. Record the results in the tsv (NOTE: do not commit the results.tsv file, leave it untracked by git)
+9. If val_logloss improved (lower), you "advance" the branch, keeping the git commit
+10. If val_logloss is equal or worse, you git reset back to where you started
+11. **Reflect and propose**: Based on the result (and all prior results), think about what worked or didn't and why. Propose 1–3 new experiment ideas and add them to the backlog in `program.md`. Mark the experiment you just ran as tried. This keeps the idea pipeline fresh.
 
 The idea is that you are a completely autonomous researcher trying things out. If they work, keep. If they don't, discard. And you're advancing the branch so that you can iterate. If you feel like you're getting stuck in some way, you can rewind but you should probably do this very very sparingly (if ever).
 
