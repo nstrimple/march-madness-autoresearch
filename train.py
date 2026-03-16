@@ -110,8 +110,11 @@ def _make_efficiency_lookup(eff_stats):
 
 
 # ── Massey Ordinals ─────────────────────────────────────────────────────────
+ELITE_SYSTEMS = ["POM", "SAG", "MOR", "COL", "BPI", "RPI"]
+
+
 def compute_massey_ranks():
-    """Load Massey Ordinals and compute average rank across all systems at end of regular season."""
+    """Load Massey Ordinals and compute rank features from all + elite systems."""
     print("  Loading Massey Ordinals...")
     df = pd.read_csv("MMasseyOrdinals.csv")
     # For each season, take the max available day
@@ -119,13 +122,24 @@ def compute_massey_ranks():
     max_days.columns = ["Season", "MaxDay"]
     df = df.merge(max_days, on="Season")
     df = df[df["RankingDayNum"] == df["MaxDay"]]
-    # Average rank across all systems per team per season
+
+    # Average rank across ALL systems per team per season
     avg_ranks = df.groupby(["Season", "TeamID"])["OrdinalRank"].mean().reset_index()
     avg_ranks.columns = ["Season", "TeamID", "massey_avg_rank"]
-    # Also get the median and min (best) rank
+    # Median and best rank across all systems
     agg = df.groupby(["Season", "TeamID"])["OrdinalRank"].agg(["median", "min"]).reset_index()
     agg.columns = ["Season", "TeamID", "massey_median_rank", "massey_best_rank"]
     avg_ranks = avg_ranks.merge(agg, on=["Season", "TeamID"])
+
+    # Elite systems average
+    elite_df = df[df["SystemName"].isin(ELITE_SYSTEMS)]
+    if len(elite_df) > 0:
+        elite_avg = elite_df.groupby(["Season", "TeamID"])["OrdinalRank"].mean().reset_index()
+        elite_avg.columns = ["Season", "TeamID", "massey_elite_rank"]
+        avg_ranks = avg_ranks.merge(elite_avg, on=["Season", "TeamID"], how="left")
+    else:
+        avg_ranks["massey_elite_rank"] = np.nan
+
     # Build lookup
     massey_lookup = {}
     for _, r in avg_ranks.iterrows():
@@ -133,6 +147,7 @@ def compute_massey_ranks():
             "massey_avg_rank": r["massey_avg_rank"],
             "massey_median_rank": r["massey_median_rank"],
             "massey_best_rank": r["massey_best_rank"],
+            "massey_elite_rank": r["massey_elite_rank"],
         }
     return massey_lookup
 
@@ -261,7 +276,7 @@ def _build_feature_row(season, t1, t2, elo_snapshot, seeds_lookup, stats_lookup,
     if massey_lookup is not None and is_mens:
         t1_massey = massey_lookup.get((season, t1), {})
         t2_massey = massey_lookup.get((season, t2), {})
-        for col in ["massey_avg_rank", "massey_median_rank", "massey_best_rank"]:
+        for col in ["massey_avg_rank", "massey_median_rank", "massey_best_rank", "massey_elite_rank"]:
             v1 = t1_massey.get(col, np.nan)
             v2 = t2_massey.get(col, np.nan)
             row[f"T1_{col}"] = v1
@@ -271,7 +286,7 @@ def _build_feature_row(season, t1, t2, elo_snapshot, seeds_lookup, stats_lookup,
             else:
                 row[f"{col}_diff"] = np.nan
     elif massey_lookup is not None:
-        for col in ["massey_avg_rank", "massey_median_rank", "massey_best_rank"]:
+        for col in ["massey_avg_rank", "massey_median_rank", "massey_best_rank", "massey_elite_rank"]:
             row[f"T1_{col}"] = np.nan
             row[f"T2_{col}"] = np.nan
             row[f"{col}_diff"] = np.nan
