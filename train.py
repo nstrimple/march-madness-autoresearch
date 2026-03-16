@@ -26,6 +26,34 @@ TOURNEY_DAY_CUTOFF = 133
 TOURNEY_WEIGHT = 4.0
 MODEL_PATH = "model.joblib"
 
+
+# ── Massey Ordinals ─────────────────────────────────────────────────────────
+def compute_massey_ranks():
+    """Load Massey Ordinals and compute average rank across all systems at end of regular season."""
+    print("  Loading Massey Ordinals...")
+    df = pd.read_csv("MMasseyOrdinals.csv")
+    # For each season, take the max available day
+    max_days = df.groupby("Season")["RankingDayNum"].max().reset_index()
+    max_days.columns = ["Season", "MaxDay"]
+    df = df.merge(max_days, on="Season")
+    df = df[df["RankingDayNum"] == df["MaxDay"]]
+    # Average rank across all systems per team per season
+    avg_ranks = df.groupby(["Season", "TeamID"])["OrdinalRank"].mean().reset_index()
+    avg_ranks.columns = ["Season", "TeamID", "massey_avg_rank"]
+    # Also get the median and min (best) rank
+    agg = df.groupby(["Season", "TeamID"])["OrdinalRank"].agg(["median", "min"]).reset_index()
+    agg.columns = ["Season", "TeamID", "massey_median_rank", "massey_best_rank"]
+    avg_ranks = avg_ranks.merge(agg, on=["Season", "TeamID"])
+    # Build lookup
+    massey_lookup = {}
+    for _, r in avg_ranks.iterrows():
+        massey_lookup[(int(r["Season"]), int(r["TeamID"]))] = {
+            "massey_avg_rank": r["massey_avg_rank"],
+            "massey_median_rank": r["massey_median_rank"],
+            "massey_best_rank": r["massey_best_rank"],
+        }
+    return massey_lookup
+
 # ── XGBoost Hyperparameters (experiment with these) ──────────────────────────
 XGB_PARAMS = {
     "objective": "binary:logistic",
@@ -107,7 +135,7 @@ def _update_elo(elo, row):
 
 
 # ── Feature Engineering ──────────────────────────────────────────────────────
-def _build_feature_row(season, t1, t2, elo_snapshot, seeds_lookup, stats_lookup, winpct_lookup, is_mens):
+def _build_feature_row(season, t1, t2, elo_snapshot, seeds_lookup, stats_lookup, winpct_lookup, is_mens, massey_lookup=None):
     """Build a single feature vector for a T1 vs T2 matchup."""
     row = {"Season": season, "T1": t1, "T2": t2, "is_mens": int(is_mens)}
 
@@ -147,11 +175,30 @@ def _build_feature_row(season, t1, t2, elo_snapshot, seeds_lookup, stats_lookup,
         else:
             row[f"{col}_diff"] = np.nan
 
+    # Massey Ordinals (Men's only)
+    if massey_lookup is not None and is_mens:
+        t1_massey = massey_lookup.get((season, t1), {})
+        t2_massey = massey_lookup.get((season, t2), {})
+        for col in ["massey_avg_rank", "massey_median_rank", "massey_best_rank"]:
+            v1 = t1_massey.get(col, np.nan)
+            v2 = t2_massey.get(col, np.nan)
+            row[f"T1_{col}"] = v1
+            row[f"T2_{col}"] = v2
+            if pd.notna(v1) and pd.notna(v2):
+                row[f"{col}_diff"] = v1 - v2
+            else:
+                row[f"{col}_diff"] = np.nan
+    elif massey_lookup is not None:
+        for col in ["massey_avg_rank", "massey_median_rank", "massey_best_rank"]:
+            row[f"T1_{col}"] = np.nan
+            row[f"T2_{col}"] = np.nan
+            row[f"{col}_diff"] = np.nan
+
     return row
 
 
 # ── Training Data Construction ───────────────────────────────────────────────
-def build_training_data(data, elo_m, elo_w, stats_m, stats_w, seeds_m, seeds_w, wp_m, wp_w):
+def build_training_data(data, elo_m, elo_w, stats_m, stats_w, seeds_m, seeds_w, wp_m, wp_w, massey_lookup=None):
     """Build training matrix from regular season + tournament games for both genders."""
     seeds_look_m, stats_look_m, wp_look_m = _make_lookups(seeds_m, stats_m, wp_m)
     seeds_look_w, stats_look_w, wp_look_w = _make_lookups(seeds_w, stats_w, wp_w)
@@ -170,7 +217,7 @@ def build_training_data(data, elo_m, elo_w, stats_m, stats_w, seeds_m, seeds_w, 
             t1, t2 = min(w_id, l_id), max(w_id, l_id)
             target = 1.0 if t1 == w_id else 0.0
 
-            row = _build_feature_row(s, t1, t2, elo_snap, seeds_look, stats_look, wp_look, label)
+            row = _build_feature_row(s, t1, t2, elo_snap, seeds_look, stats_look, wp_look, label, massey_lookup)
             row["target"] = target
             row["weight"] = 1.0
             rows.append(row)
@@ -182,7 +229,7 @@ def build_training_data(data, elo_m, elo_w, stats_m, stats_w, seeds_m, seeds_w, 
             t1, t2 = min(w_id, l_id), max(w_id, l_id)
             target = 1.0 if t1 == w_id else 0.0
 
-            row = _build_feature_row(s, t1, t2, elo_snap, seeds_look, stats_look, wp_look, label)
+            row = _build_feature_row(s, t1, t2, elo_snap, seeds_look, stats_look, wp_look, label, massey_lookup)
             row["target"] = target
             row["weight"] = TOURNEY_WEIGHT
             row["is_tourney"] = 1
@@ -244,9 +291,11 @@ def train_and_predict(data):
     wp_m = compute_win_pct(data["mens_compact"])
     wp_w = compute_win_pct(data["womens_compact"])
 
+    massey_lookup = compute_massey_ranks()
+
     print("  Building training data...")
     train_df = build_training_data(
-        data, elo_m, elo_w, stats_m, stats_w, seeds_m, seeds_w, wp_m, wp_w
+        data, elo_m, elo_w, stats_m, stats_w, seeds_m, seeds_w, wp_m, wp_w, massey_lookup
     )
     feature_cols = get_feature_cols(train_df)
     print(f"  Samples: {len(train_df):,}  Features: {len(feature_cols)}")
