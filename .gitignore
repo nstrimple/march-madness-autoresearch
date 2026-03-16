@@ -1,0 +1,12 @@
+*.csv
+.venv/
+__pycache__/
+*.joblib
+run.log
+results.tsv
+submission.csv
+tmp/
+.claude/
+march-machine-learning-mania-2026.zip
+*.pyc
+.DS_Store
