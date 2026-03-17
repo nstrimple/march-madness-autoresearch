@@ -284,7 +284,7 @@ XGB_PARAMS = {
     "min_child_weight": 3,
     "reg_alpha": 0.3,
     "reg_lambda": 2.0,
-    "gamma": 0.1,
+    "gamma": 0.0,
 }
 
 
