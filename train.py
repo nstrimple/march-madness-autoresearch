@@ -418,11 +418,22 @@ def train_and_predict(data):
     feature_cols = get_feature_cols(train_df)
     print(f"  Samples: {len(train_df):,}  Features: {len(feature_cols)}")
 
+    # Feature selection: train a model on all data pre-2022 and drop low-importance features
+    print("  Feature selection via importance...")
+    presplit = train_df[train_df["Season"] < 2022]
+    sel_model = xgb.XGBClassifier(**XGB_PARAMS)
+    sel_model.fit(presplit[feature_cols], presplit["target"], sample_weight=presplit["weight"], verbose=False)
+    importances = sel_model.feature_importances_
+    imp_order = np.argsort(importances)[::-1]
+    # Keep top 60% of features
+    n_keep = max(int(len(feature_cols) * 0.6), 5)
+    selected_cols = [feature_cols[i] for i in imp_order[:n_keep]]
+    print(f"  Kept {n_keep}/{len(feature_cols)} features")
+
     # Expanding-window CV — evaluate on tournament + regular season
     results = {}
     for val_season in VAL_SEASONS:
         tr = train_df[train_df["Season"] < val_season]
-        # Validation: tournament games + regular season games from val_season
         va_tourney = train_df[(train_df["Season"] == val_season) & (train_df["is_tourney"] == 1)]
         va_reg = train_df[(train_df["Season"] == val_season) & (train_df["is_tourney"] == 0)]
         va = pd.concat([va_tourney, va_reg], ignore_index=True)
@@ -433,12 +444,12 @@ def train_and_predict(data):
 
         model = xgb.XGBClassifier(**XGB_PARAMS)
         model.fit(
-            tr[feature_cols], tr["target"],
+            tr[selected_cols], tr["target"],
             sample_weight=tr["weight"],
             verbose=False,
         )
 
-        preds = model.predict_proba(va[feature_cols])[:, 1]
+        preds = model.predict_proba(va[selected_cols])[:, 1]
         results[val_season] = (va["target"].values, preds)
         print(f"  {val_season}: {len(va)} games ({len(va_tourney)} tourney + {len(va_reg)} reg season)")
 
