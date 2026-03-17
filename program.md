@@ -60,69 +60,101 @@ Typical runtime: ~1-2 minutes. Time budget: 3 minutes max.
 This is a living list. After each experiment (keep or discard), reflect on what you learned, then **propose 1–3 new experiment ideas** and append them to the bottom of this backlog. Cross off or annotate ideas that have been tried. The goal is to always have a rich queue of untried ideas so you never stall.
 
 #### Feature engineering
-- [x] **Massey Ordinals — all-system average** — avg/median/best rank across 197 systems. ✅ kept
-- [x] **Massey Ordinals — elite systems** — avg rank from POM, SAG, MOR, COL, BPI, RPI only. ✅ kept (0.490)
-- [x] **Massey Ordinals — individual elite systems** — each as separate feature. ❌ hurt (0.495)
-- [x] **Efficiency metrics** — off/def efficiency, eFG%, TO rate, OR rate, FT rate, tempo. ✅ kept
-- [x] **Recent form** — last 10 games stats. ❌ hurt (0.498)
-- [x] **Conference strength** — avg ELO of conference, SOS adjustments. ❌ hurt (0.497)
-- [x] **Strength of schedule** — avg opponent ELO. ❌ hurt (0.496)
-- [ ] **Coach tournament experience** — `MTeamCoaches.csv` — years coaching, prior tournament appearances, career tournament wins
+- [x] **Massey Ordinals — all-system average** — ✅ kept
+- [x] **Massey Ordinals — elite systems** — ✅ kept (0.490)
+- [x] **Massey Ordinals — individual elite systems** — ❌ hurt (0.495)
+- [x] **Efficiency metrics** — ✅ kept
+- [x] **Recent form** — ❌ hurt (0.498)
+- [x] **Conference strength** — ❌ hurt (0.497)
+- [x] **Strength of schedule** — ❌ hurt (0.496)
+- [x] **Coach tournament experience** — ❌ hurt (0.466)
 - [x] **Seed × ELO interaction** — ❌ hurt (0.496)
-- [ ] **Win streak going into tournament** — length of current win/loss streak at end of regular season
-- [ ] **Road/neutral record** — win% in away/neutral games only (tournament is neutral site)
-- [ ] **Close game performance** — win% in games decided by ≤5 points (poise under pressure)
-- [ ] **Scoring variance** — std dev of points scored (consistency metric)
-- [ ] **Massey rank trajectory** — rank improvement from mid-season to end-of-season (momentum)
+- [x] **Win streak** — ✅ kept (0.463)
+- [x] **Road/neutral record** — ✅ kept (0.467)
+- [x] **Close game performance** — ✅ kept (0.467)
+- [x] **Scoring variance** — ❌ hurt (0.463)
+- [x] **Massey rank trajectory** — ✅ kept (0.468)
+- [x] **Conference tournament results** — ✅ kept (0.465)
+- [x] **Massey rank std dev** — ❌ hurt (0.458)
+- [x] **Matchup interactions (tempo×eFG, TO×tempo)** — ❌ hurt (0.463)
+- [x] **Seed-ELO agreement** — ❌ hurt (0.458)
+- [ ] **Power conference indicator** — binary flag for P5/P6 conferences
+- [ ] **Home win% vs away win%** — separate win rates by game location
+- [ ] **Defensive rebounding rate** — opponent-adjusted defensive boards
 
 #### Model architecture
 - [x] **LightGBM defaults** — ❌ hurt (0.495)
 - [x] **Ensemble: XGB + LightGBM 50/50 blend** — ❌ hurt (0.493)
-- [ ] **LightGBM tuned** — match XGB-style params, tune num_leaves separately
-- [ ] **Ensemble: XGB + LightGBM 70/30 blend** — XGB-heavy since it's stronger alone
-- [ ] **Logistic regression** — on top ~10 features only (simple baseline to understand feature importance)
-- [ ] **Ensemble: XGB + logistic regression blend** — combine tree model with linear model for diversity
-- [ ] **Stacking** — train a meta-learner on out-of-fold predictions from XGB + LightGBM + LogReg
-- [ ] **Neural network** — simple MLP via sklearn MLPClassifier on key features
-- [x] **Eval on tourney + reg season** — ✅ kept (0.469, much broader signal)
-- [ ] **Separate men's/women's models (with reg season eval)** — retry now that eval includes reg season
+- [x] **Ensemble: XGB + LightGBM 70/30** — ✅ kept (0.462)
+- [x] **Ensemble: XGB + LightGBM 60/40** — ❌ no improvement
+- [x] **3-model ensemble XGB+LGB+LogReg** — ❌ hurt (0.463)
+- [x] **Stacking (LR meta-learner)** — ❌ hurt (0.462)
+- [x] **XGB bagging (3 seeds)** — ❌ no improvement
+- [x] **Eval on tourney + reg season** — ✅ kept (0.469)
+- [x] **Per-fold feature selection** — ✅ kept (0.457)
+- [ ] **Random Forest as 3rd model** — sklearn RF for more diversity
+- [ ] **Gradient-boosted logistic regression** — XGB with max_depth=1
 
 #### Hyperparameter tuning
-- [x] **XGB depth=4 lr=0.03 n=800 + regularization** — ✅ kept
-- [x] **XGB lower lr=0.01 n=1500** — ❌ hurt (0.493)
-- [x] **XGB depth=3** — ❌ hurt (0.492)
-- [ ] **XGB depth=5 or 6** — deeper trees to capture more interactions
-- [ ] **XGB subsample=0.6 colsample=0.6** — more aggressive subsampling
-- [x] **Early stopping** — ❌ hurt (0.495, lost training data)
-- [x] **Separate men's/women's models** — ❌ hurt (0.496, not enough data per model)
-- [ ] **Bayesian-style sweep** — try 5 random param combos and keep the best
+- [x] **XGB depth=5** — ✅ kept (0.469)
+- [x] **XGB depth=4 retry** — ❌ hurt (0.458)
+- [x] **XGB depth=6** — ❌ hurt (0.469)
+- [x] **XGB subsample=0.6 colsample=0.6** — ❌ hurt (0.463)
+- [x] **XGB subsample=0.65 colsample=0.65** — ❌ hurt (0.458)
+- [x] **XGB min_child_weight=3** — ✅ kept (0.457)
+- [x] **XGB min_child_weight=1** — ❌ hurt (0.458)
+- [x] **XGB gamma=0.1** — ✅ kept (0.457)
+- [x] **XGB gamma=0.0** — ✅ kept (0.457)
+- [x] **XGB reg_alpha=0.1** — ❌ hurt (0.458)
+- [x] **XGB reg_lambda=1.5** — ❌ hurt (0.458)
+- [x] **XGB reg_alpha=0.5 lambda=3.0** — ❌ hurt (0.458)
+- [x] **XGB lr=0.025 n=900** — ❌ hurt (0.458)
+- [x] **XGB lr=0.02 n=1200** — ❌ hurt (0.458)
+- [x] **XGB n=1000** — ❌ hurt (0.463)
+- [ ] **XGB lr=0.04 n=600** — slightly faster lr, fewer trees
+- [ ] **XGB colsample_bylevel=0.7** — per-level column sampling
 
 #### Data strategy
-- [x] **Tournament weight = 6.0** — ❌ hurt (0.496)
-- [ ] **Tournament weight = 2.0** — less emphasis on tournament games in training
-- [ ] **Recency weighting** — weight recent seasons (2018+) higher than older seasons
-- [ ] **Drop pre-2010 data** — old seasons may have different dynamics, hurt more than help
-- [ ] **Tournament-only training** — train exclusively on historical tournament games
-- [ ] **Seed-based prior blending** — blend model output with historical seed-matchup win rates
+- [x] **Tournament weight = 6.0** — ❌ hurt
+- [x] **Tournament weight = 3.0** — ✅ kept (0.457)
+- [x] **Tournament weight = 3.5** — ❌ hurt
+- [x] **Tournament weight = 2.0** — ❌ hurt (0.458)
+- [x] **Recency weighting 5%/yr** — ✅ kept (0.469)
+- [x] **Recency weighting 8%/yr** — ❌ hurt (0.463)
+- [x] **Remove recency weighting** — ❌ hurt (0.458)
+- [x] **Drop pre-2010 data** — ❌ hurt (0.469)
+- [x] **Seed-based prior blending** — ✅ kept, optimized to 60% (0.463→0.457)
+- [x] **ELO prior blend for reg season** — ❌ hurt (0.463)
+- [x] **Seed prior for reg season seeded matchups** — ❌ hurt (0.458)
+- [ ] **Train on only last 15 years** — drop very old seasons
+- [ ] **Season-aware tournament weight** — higher weight for recent tournament games
 
 #### ELO tuning
-- [x] **K=32, season_regression=0.80** — ❌ hurt (0.504)
-- [ ] **K=15, season_regression=0.80** — slower adaptation, more carryover
-- [ ] **Remove home court bonus entirely** — tournament is neutral site, HCA may add noise
-- [ ] **Margin-of-victory cap = 1.5** — reduce influence of blowouts on ELO
+- [x] **K=30** — ✅ kept (0.462)
+- [x] **K=25** — ✅ kept then superseded by K=30
+- [x] **K=35** — ❌ hurt (0.462)
+- [x] **K=28** — ❌ hurt (0.458)
+- [x] **Season regression 0.80→0.85→0.90→0.95→0.98→1.0** — all ✅, best=1.0 (no regression)
+- [x] **Remove home court bonus** — ✅ kept (0.463)
+- [x] **MOV cap 1.5** — ❌ hurt (0.465)
+- [x] **MOV cap 2.0** — ❌ hurt (0.458)
+- [x] **MOV cap 3.0** — ❌ hurt (0.458)
+- [x] **Remove MOV entirely** — ❌ hurt (0.460)
+- [ ] **K=32 with no regression** — slightly higher K with current no-regression setup
+- [ ] **Different MOV formula** — use sqrt(margin) instead of log(margin+1)
 
 #### Radical / creative
-- [x] **Use only diff features + key absolutes** — ❌ hurt (0.494)
-- [x] **Feature selection top 60% by XGB importance** — ✅ kept (0.469270)
-- [ ] **Feature selection top 50%** — try more aggressive pruning
-- [ ] **Feature selection top 70%** — try less aggressive pruning
-- [ ] **Prediction calibration** — apply Platt scaling or isotonic regression to final predictions
-- [ ] **Target smoothing** — use soft labels (0.1/0.9) instead of hard (0/1) for training
-- [ ] **Matchup-style features** — fast team vs slow team (tempo diff × eFG diff interactions)
-- [ ] **Conference tournament results** — `MConferenceTourneyGames.csv` — how team performed in conf tourney
-- [ ] **Re-try features that hurt before** — now with reg season eval, previously bad features might help (recent form, SOS, interactions)
-- [ ] **Weighted reg season eval** — weight tournament game predictions higher in the combined eval
-- [ ] **Logistic regression on reg season** — simple model may do well on predictable reg season games
+- [x] **Diff-only features** — ❌ hurt (0.458)
+- [x] **Feature selection 50%** — ❌ hurt (0.469)
+- [x] **Feature selection 55%** — ❌ hurt (0.458)
+- [x] **Feature selection 70%** — ❌ hurt (0.463)
+- [x] **Platt scaling** — ❌ hurt (0.474)
+- [x] **Target smoothing** — crash (XGBClassifier needs binary labels)
+- [ ] **Isotonic regression calibration** — non-parametric calibration post-prediction
+- [ ] **Prediction clipping at 0.10/0.90** — less extreme than default 0.05/0.95
+- [ ] **Use XGBRegressor** — predict probability directly with regression, enables soft labels
+- [ ] **Two-stage model** — first predict if upset (seed mismatch), then predict probability
+- [ ] **Moving-average ELO** — use exponential moving average of ELO over last N games instead of snapshot
 
 ### Simplicity criterion
 
