@@ -677,7 +677,7 @@ def train_and_predict(data):
     print(f"  Samples: {len(train_df):,}  Features: {len(feature_cols)}")
 
     # Feature selection will be done per fold
-    n_keep = max(int(len(feature_cols) * 0.6), 5)
+    n_keep = max(int(len(feature_cols) * 0.55), 5)
     print(f"  Will keep top {n_keep}/{len(feature_cols)} features per fold")
 
     # Build seed-matchup win rate prior from historical tournament data
