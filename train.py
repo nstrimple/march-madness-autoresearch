@@ -596,6 +596,33 @@ def train_and_predict(data):
     selected_cols = [feature_cols[i] for i in imp_order[:n_keep]]
     print(f"  Kept {n_keep}/{len(feature_cols)} features")
 
+    # Build seed-matchup win rate prior from historical tournament data
+    print("  Computing seed-matchup priors...")
+    seed_prior = {}  # (seed1, seed2) -> historical win rate for seed1
+    all_hist_tourney = pd.concat([data["mens_tourney"], data["womens_tourney"]], ignore_index=True)
+    seeds_look_m, _, _ = _make_lookups(seeds_m, stats_m, wp_m)
+    seeds_look_w_tmp, _, _ = _make_lookups(seeds_w, stats_w, wp_w)
+    all_seeds = {**seeds_look_m, **seeds_look_w_tmp}
+
+    seed_records = {}  # (s1, s2) -> [wins_for_s1, total]
+    for _, g in all_hist_tourney.iterrows():
+        s = int(g["Season"])
+        w_id, l_id = int(g["WTeamID"]), int(g["LTeamID"])
+        t1, t2 = min(w_id, l_id), max(w_id, l_id)
+        s1 = all_seeds.get((s, t1), None)
+        s2 = all_seeds.get((s, t2), None)
+        if s1 is not None and s2 is not None:
+            key = (int(s1), int(s2))
+            seed_records.setdefault(key, [0, 0])
+            seed_records[key][1] += 1
+            if t1 == w_id:
+                seed_records[key][0] += 1
+
+    for k, (w, t) in seed_records.items():
+        seed_prior[k] = w / t if t > 0 else 0.5
+
+    BLEND_ALPHA = 0.05  # 5% prior blend
+
     # Expanding-window CV — evaluate on tournament + regular season
     results = {}
     for val_season in VAL_SEASONS:
@@ -616,6 +643,16 @@ def train_and_predict(data):
         )
 
         preds = model.predict_proba(va[selected_cols])[:, 1]
+
+        # Blend with seed prior for tournament games
+        for i in range(len(va)):
+            if va.iloc[i].get("is_tourney", 0) == 1:
+                s1 = va.iloc[i].get("T1_seed", None)
+                s2 = va.iloc[i].get("T2_seed", None)
+                if pd.notna(s1) and pd.notna(s2):
+                    prior = seed_prior.get((int(s1), int(s2)), 0.5)
+                    preds[i] = (1 - BLEND_ALPHA) * preds[i] + BLEND_ALPHA * prior
+
         results[val_season] = (va["target"].values, preds)
         print(f"  {val_season}: {len(va)} games ({len(va_tourney)} tourney + {len(va_reg)} reg season)")
 
