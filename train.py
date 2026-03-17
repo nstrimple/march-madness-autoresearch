@@ -226,6 +226,54 @@ def compute_win_streak(compact_results):
     return streaks
 
 
+# ── Last N Games Stats ─────────────────────────────────────────────────────
+def compute_last_n_stats(detailed_results, n=10):
+    """Compute stats from only the last N games of each season per team."""
+    # Sort by season and day
+    df = detailed_results.sort_values(["Season", "DayNum"]).reset_index(drop=True)
+
+    rows = []
+    for _, g in df.iterrows():
+        for is_winner in [True, False]:
+            pf = "W" if is_winner else "L"
+            op = "L" if is_winner else "W"
+            rows.append({
+                "Season": int(g["Season"]),
+                "TeamID": int(g[f"{pf}TeamID"]),
+                "DayNum": int(g["DayNum"]),
+                "score": int(g[f"{pf}Score"]),
+                "opp_score": int(g[f"{op}Score"]),
+                "fg_pct": int(g[f"{pf}FGM"]) / max(int(g[f"{pf}FGA"]), 1),
+                "to": int(g[f"{pf}TO"]),
+            })
+
+    game_df = pd.DataFrame(rows)
+    game_df = game_df.sort_values(["Season", "TeamID", "DayNum"])
+
+    # Take last N games per team per season
+    last_n = game_df.groupby(["Season", "TeamID"]).tail(n)
+    agg = last_n.groupby(["Season", "TeamID"]).agg({
+        "score": "mean",
+        "opp_score": "mean",
+        "fg_pct": "mean",
+        "to": "mean",
+    }).reset_index()
+    agg.columns = ["Season", "TeamID", "last_n_ppg", "last_n_opp_ppg", "last_n_fg_pct", "last_n_to"]
+    agg["last_n_margin"] = agg["last_n_ppg"] - agg["last_n_opp_ppg"]
+
+    lookup = {}
+    for _, r in agg.iterrows():
+        lookup[(int(r["Season"]), int(r["TeamID"]))] = {
+            "last_n_ppg": r["last_n_ppg"],
+            "last_n_margin": r["last_n_margin"],
+            "last_n_fg_pct": r["last_n_fg_pct"],
+            "last_n_to": r["last_n_to"],
+        }
+    return lookup
+
+LAST_N_COLS = ["last_n_ppg", "last_n_margin", "last_n_fg_pct", "last_n_to"]
+
+
 # ── Massey Ordinals ─────────────────────────────────────────────────────────
 ELITE_SYSTEMS = ["POM", "SAG", "MOR", "COL", "BPI", "RPI", "MAS", "WIL", "DOK", "KPK", "DII", "PGH", "TRK", "TRP", "INC", "HAS", "BWE", "EMK", "JNG", "DUN"]
 
@@ -363,7 +411,7 @@ def _update_elo(elo, row):
 
 
 # ── Feature Engineering ──────────────────────────────────────────────────────
-def _build_feature_row(season, t1, t2, elo_snapshot, seeds_lookup, stats_lookup, winpct_lookup, is_mens, massey_lookup=None, eff_lookup=None, road_lookup=None, close_lookup=None, conf_tourney_lookup=None, streak_lookup=None, power_lookup=None):
+def _build_feature_row(season, t1, t2, elo_snapshot, seeds_lookup, stats_lookup, winpct_lookup, is_mens, massey_lookup=None, eff_lookup=None, road_lookup=None, close_lookup=None, conf_tourney_lookup=None, streak_lookup=None, power_lookup=None, last_n_lookup=None):
     """Build a single feature vector for a T1 vs T2 matchup."""
     row = {"Season": season, "T1": t1, "T2": t2, "is_mens": int(is_mens)}
 
@@ -463,6 +511,20 @@ def _build_feature_row(season, t1, t2, elo_snapshot, seeds_lookup, stats_lookup,
             row[f"T2_{col}"] = t2_ct.get(col, 0)
             row[f"{col}_diff"] = row[f"T1_{col}"] - row[f"T2_{col}"]
 
+    # Last N games stats
+    if last_n_lookup is not None:
+        t1_ln = last_n_lookup.get((season, t1), {})
+        t2_ln = last_n_lookup.get((season, t2), {})
+        for col in LAST_N_COLS:
+            v1 = t1_ln.get(col, np.nan)
+            v2 = t2_ln.get(col, np.nan)
+            row[f"T1_{col}"] = v1
+            row[f"T2_{col}"] = v2
+            if pd.notna(v1) and pd.notna(v2):
+                row[f"{col}_diff"] = v1 - v2
+            else:
+                row[f"{col}_diff"] = np.nan
+
     # Power conference indicator
     if power_lookup is not None:
         row["T1_power_conf"] = power_lookup.get((season, t1), 0)
@@ -473,7 +535,7 @@ def _build_feature_row(season, t1, t2, elo_snapshot, seeds_lookup, stats_lookup,
 
 
 # ── Training Data Construction ───────────────────────────────────────────────
-def build_training_data(data, elo_m, elo_w, stats_m, stats_w, seeds_m, seeds_w, wp_m, wp_w, massey_lookup=None, eff_m=None, eff_w=None, road_m=None, road_w=None, close_m=None, close_w=None, conf_m=None, conf_w=None, streak_m=None, streak_w=None, power_m=None, power_w=None):
+def build_training_data(data, elo_m, elo_w, stats_m, stats_w, seeds_m, seeds_w, wp_m, wp_w, massey_lookup=None, eff_m=None, eff_w=None, road_m=None, road_w=None, close_m=None, close_w=None, conf_m=None, conf_w=None, streak_m=None, streak_w=None, power_m=None, power_w=None, last_n_m=None, last_n_w=None):
     """Build training matrix from regular season + tournament games for both genders."""
     seeds_look_m, stats_look_m, wp_look_m = _make_lookups(seeds_m, stats_m, wp_m)
     seeds_look_w, stats_look_w, wp_look_w = _make_lookups(seeds_w, stats_w, wp_w)
@@ -492,6 +554,7 @@ def build_training_data(data, elo_m, elo_w, stats_m, stats_w, seeds_m, seeds_w, 
         conf_look = conf_m if label else conf_w
         streak_look = streak_m if label else streak_w
         power_look = power_m if label else power_w
+        last_n_look = last_n_m if label else last_n_w
 
         compact = data[f"{gender}_compact"]
         for _, g in compact.iterrows():
@@ -500,7 +563,7 @@ def build_training_data(data, elo_m, elo_w, stats_m, stats_w, seeds_m, seeds_w, 
             t1, t2 = min(w_id, l_id), max(w_id, l_id)
             target = 1.0 if t1 == w_id else 0.0
 
-            row = _build_feature_row(s, t1, t2, elo_snap, seeds_look, stats_look, wp_look, label, massey_lookup, eff_look, road_look, close_look, conf_look, streak_look, power_look)
+            row = _build_feature_row(s, t1, t2, elo_snap, seeds_look, stats_look, wp_look, label, massey_lookup, eff_look, road_look, close_look, conf_look, streak_look, power_look, last_n_look)
             row["target"] = target
             row["weight"] = 1.0
             rows.append(row)
@@ -512,7 +575,7 @@ def build_training_data(data, elo_m, elo_w, stats_m, stats_w, seeds_m, seeds_w, 
             t1, t2 = min(w_id, l_id), max(w_id, l_id)
             target = 1.0 if t1 == w_id else 0.0
 
-            row = _build_feature_row(s, t1, t2, elo_snap, seeds_look, stats_look, wp_look, label, massey_lookup, eff_look, road_look, close_look, conf_look, streak_look, power_look)
+            row = _build_feature_row(s, t1, t2, elo_snap, seeds_look, stats_look, wp_look, label, massey_lookup, eff_look, road_look, close_look, conf_look, streak_look, power_look, last_n_look)
             row["target"] = target
             row["weight"] = TOURNEY_WEIGHT
             row["is_tourney"] = 1
@@ -602,9 +665,13 @@ def train_and_predict(data):
     power_m = compute_power_conf("M")
     power_w = compute_power_conf("W")
 
+    print("  Computing last-N game stats...")
+    last_n_m = compute_last_n_stats(data["mens_detailed"])
+    last_n_w = compute_last_n_stats(data["womens_detailed"])
+
     print("  Building training data...")
     train_df = build_training_data(
-        data, elo_m, elo_w, stats_m, stats_w, seeds_m, seeds_w, wp_m, wp_w, massey_lookup, eff_m, eff_w, road_m, road_w, close_m, close_w, conf_m, conf_w, streak_m, streak_w, power_m, power_w
+        data, elo_m, elo_w, stats_m, stats_w, seeds_m, seeds_w, wp_m, wp_w, massey_lookup, eff_m, eff_w, road_m, road_w, close_m, close_w, conf_m, conf_w, streak_m, streak_w, power_m, power_w, last_n_m, last_n_w
     )
     feature_cols = get_feature_cols(train_df)
     print(f"  Samples: {len(train_df):,}  Features: {len(feature_cols)}")
