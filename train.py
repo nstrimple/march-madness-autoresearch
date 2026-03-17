@@ -353,6 +353,9 @@ def build_training_data(data, elo_m, elo_w, stats_m, stats_w, seeds_m, seeds_w, 
     if "is_tourney" not in df.columns:
         df["is_tourney"] = 0
     df["is_tourney"] = df["is_tourney"].fillna(0).astype(int)
+    # Recency weighting: more recent seasons get higher weight
+    max_season = df["Season"].max()
+    df["weight"] = df["weight"] * (1.0 + 0.05 * (df["Season"] - 2003))
     return df
 
 
