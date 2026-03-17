@@ -109,6 +109,39 @@ def _make_efficiency_lookup(eff_stats):
     return lookup
 
 
+# ── Road/Neutral Record ────────────────────────────────────────────────────
+def compute_road_record(compact_results):
+    """Compute win% in away and neutral games per team per season."""
+    records = {}  # (season, team) -> [wins, games]
+    for _, g in compact_results.iterrows():
+        s = int(g["Season"])
+        w_id, l_id = int(g["WTeamID"]), int(g["LTeamID"])
+        loc = g["WLoc"]
+        # Away wins for winner
+        if loc == "A":  # winner played away
+            records.setdefault((s, w_id), [0, 0])
+            records[(s, w_id)][0] += 1
+            records[(s, w_id)][1] += 1
+            records.setdefault((s, l_id), [0, 0])
+            records[(s, l_id)][1] += 1
+        elif loc == "N":  # neutral site
+            records.setdefault((s, w_id), [0, 0])
+            records[(s, w_id)][0] += 1
+            records[(s, w_id)][1] += 1
+            records.setdefault((s, l_id), [0, 0])
+            records[(s, l_id)][1] += 1
+        # loc == "H" means winner at home — loser was away
+        elif loc == "H":
+            records.setdefault((s, l_id), [0, 0])
+            records[(s, l_id)][1] += 1  # away loss
+            # winner doesn't count (was at home)
+
+    lookup = {}
+    for k, (w, g) in records.items():
+        lookup[k] = w / g if g > 0 else 0.5
+    return lookup
+
+
 # ── Massey Ordinals ─────────────────────────────────────────────────────────
 ELITE_SYSTEMS = ["POM", "SAG", "MOR", "COL", "BPI", "RPI"]
 
@@ -246,7 +279,7 @@ def _update_elo(elo, row):
 
 
 # ── Feature Engineering ──────────────────────────────────────────────────────
-def _build_feature_row(season, t1, t2, elo_snapshot, seeds_lookup, stats_lookup, winpct_lookup, is_mens, massey_lookup=None, eff_lookup=None):
+def _build_feature_row(season, t1, t2, elo_snapshot, seeds_lookup, stats_lookup, winpct_lookup, is_mens, massey_lookup=None, eff_lookup=None, road_lookup=None):
     """Build a single feature vector for a T1 vs T2 matchup."""
     row = {"Season": season, "T1": t1, "T2": t2, "is_mens": int(is_mens)}
 
@@ -319,11 +352,17 @@ def _build_feature_row(season, t1, t2, elo_snapshot, seeds_lookup, stats_lookup,
             else:
                 row[f"{col}_diff"] = np.nan
 
+    # Road/neutral record
+    if road_lookup is not None:
+        row["T1_road_pct"] = road_lookup.get((season, t1), 0.5)
+        row["T2_road_pct"] = road_lookup.get((season, t2), 0.5)
+        row["road_pct_diff"] = row["T1_road_pct"] - row["T2_road_pct"]
+
     return row
 
 
 # ── Training Data Construction ───────────────────────────────────────────────
-def build_training_data(data, elo_m, elo_w, stats_m, stats_w, seeds_m, seeds_w, wp_m, wp_w, massey_lookup=None, eff_m=None, eff_w=None):
+def build_training_data(data, elo_m, elo_w, stats_m, stats_w, seeds_m, seeds_w, wp_m, wp_w, massey_lookup=None, eff_m=None, eff_w=None, road_m=None, road_w=None):
     """Build training matrix from regular season + tournament games for both genders."""
     seeds_look_m, stats_look_m, wp_look_m = _make_lookups(seeds_m, stats_m, wp_m)
     seeds_look_w, stats_look_w, wp_look_w = _make_lookups(seeds_w, stats_w, wp_w)
@@ -337,6 +376,7 @@ def build_training_data(data, elo_m, elo_w, stats_m, stats_w, seeds_m, seeds_w, 
         stats_look = stats_look_m if label else stats_look_w
         wp_look = wp_look_m if label else wp_look_w
         eff_look = eff_look_m if label else eff_look_w
+        road_look = road_m if label else road_w
 
         compact = data[f"{gender}_compact"]
         for _, g in compact.iterrows():
@@ -345,7 +385,7 @@ def build_training_data(data, elo_m, elo_w, stats_m, stats_w, seeds_m, seeds_w, 
             t1, t2 = min(w_id, l_id), max(w_id, l_id)
             target = 1.0 if t1 == w_id else 0.0
 
-            row = _build_feature_row(s, t1, t2, elo_snap, seeds_look, stats_look, wp_look, label, massey_lookup, eff_look)
+            row = _build_feature_row(s, t1, t2, elo_snap, seeds_look, stats_look, wp_look, label, massey_lookup, eff_look, road_look)
             row["target"] = target
             row["weight"] = 1.0
             rows.append(row)
@@ -357,7 +397,7 @@ def build_training_data(data, elo_m, elo_w, stats_m, stats_w, seeds_m, seeds_w, 
             t1, t2 = min(w_id, l_id), max(w_id, l_id)
             target = 1.0 if t1 == w_id else 0.0
 
-            row = _build_feature_row(s, t1, t2, elo_snap, seeds_look, stats_look, wp_look, label, massey_lookup, eff_look)
+            row = _build_feature_row(s, t1, t2, elo_snap, seeds_look, stats_look, wp_look, label, massey_lookup, eff_look, road_look)
             row["target"] = target
             row["weight"] = TOURNEY_WEIGHT
             row["is_tourney"] = 1
@@ -428,9 +468,13 @@ def train_and_predict(data):
     eff_m = compute_efficiency_stats(data["mens_detailed"])
     eff_w = compute_efficiency_stats(data["womens_detailed"])
 
+    print("  Computing road/neutral records...")
+    road_m = compute_road_record(data["mens_compact"])
+    road_w = compute_road_record(data["womens_compact"])
+
     print("  Building training data...")
     train_df = build_training_data(
-        data, elo_m, elo_w, stats_m, stats_w, seeds_m, seeds_w, wp_m, wp_w, massey_lookup, eff_m, eff_w
+        data, elo_m, elo_w, stats_m, stats_w, seeds_m, seeds_w, wp_m, wp_w, massey_lookup, eff_m, eff_w, road_m, road_w
     )
     feature_cols = get_feature_cols(train_df)
     print(f"  Samples: {len(train_df):,}  Features: {len(feature_cols)}")
