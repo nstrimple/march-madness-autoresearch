@@ -621,7 +621,7 @@ def train_and_predict(data):
     for k, (w, t) in seed_records.items():
         seed_prior[k] = w / t if t > 0 else 0.5
 
-    BLEND_ALPHA = 0.25  # 25% prior blend
+    BLEND_ALPHA = 0.30  # 30% prior blend
 
     # Expanding-window CV — evaluate on tournament + regular season
     results = {}
