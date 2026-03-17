@@ -342,7 +342,7 @@ def _update_elo(elo, row):
     expected_w = 1.0 / (1.0 + 10.0 ** ((l_elo + l_adj - w_elo - w_adj) / 400.0))
 
     margin = abs(int(row["WScore"]) - int(row["LScore"]))
-    mov_mult = min(math.log(margin + 1), 2.5)
+    mov_mult = min(math.sqrt(margin), 2.5)
 
     update = K * mov_mult * (1 - expected_w)
     elo[w_id] = w_elo + update
