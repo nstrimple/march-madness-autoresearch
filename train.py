@@ -585,17 +585,9 @@ def train_and_predict(data):
     feature_cols = get_feature_cols(train_df)
     print(f"  Samples: {len(train_df):,}  Features: {len(feature_cols)}")
 
-    # Feature selection: train a model on all data pre-2022 and drop low-importance features
-    print("  Feature selection via importance...")
-    presplit = train_df[train_df["Season"] < 2022]
-    sel_model = xgb.XGBClassifier(**XGB_PARAMS)
-    sel_model.fit(presplit[feature_cols], presplit["target"], sample_weight=presplit["weight"], verbose=False)
-    importances = sel_model.feature_importances_
-    imp_order = np.argsort(importances)[::-1]
-    # Keep top 60% of features
+    # Feature selection will be done per fold
     n_keep = max(int(len(feature_cols) * 0.6), 5)
-    selected_cols = [feature_cols[i] for i in imp_order[:n_keep]]
-    print(f"  Kept {n_keep}/{len(feature_cols)} features")
+    print(f"  Will keep top {n_keep}/{len(feature_cols)} features per fold")
 
     # Build seed-matchup win rate prior from historical tournament data
     print("  Computing seed-matchup priors...")
@@ -635,6 +627,13 @@ def train_and_predict(data):
         if len(va) == 0:
             print(f"  {val_season}: no games, skipping")
             continue
+
+        # Per-fold feature selection
+        sel_model = xgb.XGBClassifier(**XGB_PARAMS)
+        sel_model.fit(tr[feature_cols], tr["target"], sample_weight=tr["weight"], verbose=False)
+        importances = sel_model.feature_importances_
+        imp_order = np.argsort(importances)[::-1]
+        selected_cols = [feature_cols[i] for i in imp_order[:n_keep]]
 
         # XGB model
         xgb_model = xgb.XGBClassifier(**XGB_PARAMS)
