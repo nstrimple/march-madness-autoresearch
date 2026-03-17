@@ -418,14 +418,17 @@ def train_and_predict(data):
     feature_cols = get_feature_cols(train_df)
     print(f"  Samples: {len(train_df):,}  Features: {len(feature_cols)}")
 
-    # Expanding-window CV
+    # Expanding-window CV — evaluate on tournament + regular season
     results = {}
     for val_season in VAL_SEASONS:
         tr = train_df[train_df["Season"] < val_season]
-        va = train_df[(train_df["Season"] == val_season) & (train_df["is_tourney"] == 1)]
+        # Validation: tournament games + regular season games from val_season
+        va_tourney = train_df[(train_df["Season"] == val_season) & (train_df["is_tourney"] == 1)]
+        va_reg = train_df[(train_df["Season"] == val_season) & (train_df["is_tourney"] == 0)]
+        va = pd.concat([va_tourney, va_reg], ignore_index=True)
 
         if len(va) == 0:
-            print(f"  {val_season}: no tournament games, skipping")
+            print(f"  {val_season}: no games, skipping")
             continue
 
         model = xgb.XGBClassifier(**XGB_PARAMS)
@@ -437,7 +440,7 @@ def train_and_predict(data):
 
         preds = model.predict_proba(va[feature_cols])[:, 1]
         results[val_season] = (va["target"].values, preds)
-        print(f"  {val_season}: {len(va)} games evaluated")
+        print(f"  {val_season}: {len(va)} games ({len(va_tourney)} tourney + {len(va_reg)} reg season)")
 
     return results
 
