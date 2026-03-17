@@ -281,7 +281,7 @@ XGB_PARAMS = {
     "n_estimators": 800,
     "subsample": 0.7,
     "colsample_bytree": 0.7,
-    "min_child_weight": 5,
+    "min_child_weight": 3,
     "reg_alpha": 0.3,
     "reg_lambda": 2.0,
     "gamma": 0.2,
