@@ -214,7 +214,7 @@ def compute_win_streak(compact_results):
 
 
 # ── Massey Ordinals ─────────────────────────────────────────────────────────
-ELITE_SYSTEMS = ["POM", "SAG", "MOR", "COL", "BPI", "RPI"]
+ELITE_SYSTEMS = ["POM", "SAG", "MOR", "COL", "BPI", "RPI", "MAS", "WIL", "DOK", "KPK"]
 
 
 def compute_massey_ranks():
