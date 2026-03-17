@@ -158,7 +158,7 @@ XGB_PARAMS = {
     "tree_method": "hist",
     "nthread": -1,
     "verbosity": 0,
-    "max_depth": 4,
+    "max_depth": 5,
     "learning_rate": 0.03,
     "n_estimators": 800,
     "subsample": 0.7,
