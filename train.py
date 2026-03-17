@@ -21,7 +21,7 @@ from prepare import (
 # ── ELO Parameters (experiment with these) ───────────────────────────────────
 INITIAL_ELO = 1500
 K = 30
-SEASON_REGRESSION = 0.80
+SEASON_REGRESSION = 0.85
 HOME_COURT_BONUS = 0
 TOURNEY_DAY_CUTOFF = 133
 TOURNEY_WEIGHT = 4.0
