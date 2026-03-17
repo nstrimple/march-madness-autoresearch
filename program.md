@@ -113,7 +113,9 @@ This is a living list. After each experiment (keep or discard), reflect on what 
 
 #### Radical / creative
 - [x] **Use only diff features + key absolutes** — ❌ hurt (0.494)
-- [ ] **Feature selection via importance** — run one model, drop bottom 50% features by importance, retrain
+- [x] **Feature selection top 60% by XGB importance** — ✅ kept (0.469270)
+- [ ] **Feature selection top 50%** — try more aggressive pruning
+- [ ] **Feature selection top 70%** — try less aggressive pruning
 - [ ] **Prediction calibration** — apply Platt scaling or isotonic regression to final predictions
 - [ ] **Target smoothing** — use soft labels (0.1/0.9) instead of hard (0/1) for training
 - [ ] **Matchup-style features** — fast team vs slow team (tempo diff × eFG diff interactions)
