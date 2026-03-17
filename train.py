@@ -10,6 +10,7 @@ import math
 import numpy as np
 import pandas as pd
 import xgboost as xgb
+import lightgbm as lgb
 
 from prepare import (
     load_data, compute_season_stats, parse_seeds, compute_win_pct,
@@ -635,14 +636,37 @@ def train_and_predict(data):
             print(f"  {val_season}: no games, skipping")
             continue
 
-        model = xgb.XGBClassifier(**XGB_PARAMS)
-        model.fit(
+        # XGB model
+        xgb_model = xgb.XGBClassifier(**XGB_PARAMS)
+        xgb_model.fit(
             tr[selected_cols], tr["target"],
             sample_weight=tr["weight"],
             verbose=False,
         )
+        xgb_preds = xgb_model.predict_proba(va[selected_cols])[:, 1]
 
-        preds = model.predict_proba(va[selected_cols])[:, 1]
+        # LightGBM model
+        lgb_model = lgb.LGBMClassifier(
+            objective="binary",
+            max_depth=5,
+            learning_rate=0.03,
+            n_estimators=800,
+            subsample=0.7,
+            colsample_bytree=0.7,
+            min_child_weight=5,
+            reg_alpha=0.3,
+            reg_lambda=2.0,
+            num_leaves=31,
+            verbose=-1,
+        )
+        lgb_model.fit(
+            tr[selected_cols], tr["target"],
+            sample_weight=tr["weight"],
+        )
+        lgb_preds = lgb_model.predict_proba(va[selected_cols])[:, 1]
+
+        # Ensemble: 70% XGB + 30% LightGBM
+        preds = 0.7 * xgb_preds + 0.3 * lgb_preds
 
         # Blend with seed prior for tournament games
         for i in range(len(va)):
