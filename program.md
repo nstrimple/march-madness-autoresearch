@@ -66,9 +66,9 @@ This is a living list. After each experiment (keep or discard), reflect on what 
 - [x] **Efficiency metrics** — off/def efficiency, eFG%, TO rate, OR rate, FT rate, tempo. ✅ kept
 - [x] **Recent form** — last 10 games stats. ❌ hurt (0.498)
 - [x] **Conference strength** — avg ELO of conference, SOS adjustments. ❌ hurt (0.497)
-- [ ] **Strength of schedule** — average opponent ELO or Massey rank faced during regular season
+- [x] **Strength of schedule** — avg opponent ELO. ❌ hurt (0.496)
 - [ ] **Coach tournament experience** — `MTeamCoaches.csv` — years coaching, prior tournament appearances, career tournament wins
-- [ ] **Seed × ELO interaction** — multiply seed_diff × elo_diff, seed × massey_rank combos
+- [x] **Seed × ELO interaction** — ❌ hurt (0.496)
 - [ ] **Win streak going into tournament** — length of current win/loss streak at end of regular season
 - [ ] **Road/neutral record** — win% in away/neutral games only (tournament is neutral site)
 - [ ] **Close game performance** — win% in games decided by ≤5 points (poise under pressure)
@@ -84,15 +84,17 @@ This is a living list. After each experiment (keep or discard), reflect on what 
 - [ ] **Ensemble: XGB + logistic regression blend** — combine tree model with linear model for diversity
 - [ ] **Stacking** — train a meta-learner on out-of-fold predictions from XGB + LightGBM + LogReg
 - [ ] **Neural network** — simple MLP via sklearn MLPClassifier on key features
-- [ ] **Separate men's/women's models** — train two independent models instead of one with is_mens flag
+- [x] **Eval on tourney + reg season** — ✅ kept (0.469, much broader signal)
+- [ ] **Separate men's/women's models (with reg season eval)** — retry now that eval includes reg season
 
 #### Hyperparameter tuning
 - [x] **XGB depth=4 lr=0.03 n=800 + regularization** — ✅ kept
-- [ ] **XGB lower lr=0.01 n=1500** — slower learning, more trees
-- [ ] **XGB depth=3** — shallower trees for less overfitting
+- [x] **XGB lower lr=0.01 n=1500** — ❌ hurt (0.493)
+- [x] **XGB depth=3** — ❌ hurt (0.492)
 - [ ] **XGB depth=5 or 6** — deeper trees to capture more interactions
 - [ ] **XGB subsample=0.6 colsample=0.6** — more aggressive subsampling
-- [ ] **Early stopping** — use validation set to stop training (avoid overfitting tree count)
+- [x] **Early stopping** — ❌ hurt (0.495, lost training data)
+- [x] **Separate men's/women's models** — ❌ hurt (0.496, not enough data per model)
 - [ ] **Bayesian-style sweep** — try 5 random param combos and keep the best
 
 #### Data strategy
@@ -116,6 +118,9 @@ This is a living list. After each experiment (keep or discard), reflect on what 
 - [ ] **Target smoothing** — use soft labels (0.1/0.9) instead of hard (0/1) for training
 - [ ] **Matchup-style features** — fast team vs slow team (tempo diff × eFG diff interactions)
 - [ ] **Conference tournament results** — `MConferenceTourneyGames.csv` — how team performed in conf tourney
+- [ ] **Re-try features that hurt before** — now with reg season eval, previously bad features might help (recent form, SOS, interactions)
+- [ ] **Weighted reg season eval** — weight tournament game predictions higher in the combined eval
+- [ ] **Logistic regression on reg season** — simple model may do well on predictable reg season games
 
 ### Simplicity criterion
 
