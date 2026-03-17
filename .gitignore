@@ -1,9 +1,10 @@
 *.csv
+*.tsv
+data/
 .venv/
 __pycache__/
 *.joblib
 run.log
-results.tsv
 submission.csv
 tmp/
 .claude/

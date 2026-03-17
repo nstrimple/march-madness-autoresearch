@@ -2,13 +2,16 @@
 Agent-modifiable training pipeline for March Madness predictions.
 Modify this file to experiment with features, models, and hyperparameters.
 
-Usage: python train.py
+Usage: python train.py          # CV evaluation only
+       python train.py --save   # CV + save full model to model.joblib
 """
 
+import argparse
 import time
 import math
 import numpy as np
 import pandas as pd
+import joblib
 import xgboost as xgb
 import lightgbm as lgb
 
@@ -773,8 +776,110 @@ def train_and_predict(data):
     return results
 
 
+# ── Train & Save ──────────────────────────────────────────────────────────────
+def train_and_save(data, model_path=MODEL_PATH):
+    """Train on ALL data with the full pipeline and save to disk."""
+    print("  Computing all features for final model...")
+    elo_m = compute_elo_ratings(data["mens_compact"], data["mens_tourney"])
+    elo_w = compute_elo_ratings(data["womens_compact"], data["womens_tourney"])
+    stats_m = compute_season_stats(data["mens_detailed"])
+    stats_w = compute_season_stats(data["womens_detailed"])
+    seeds_m = parse_seeds(data["mens_seeds"])
+    seeds_w = parse_seeds(data["womens_seeds"])
+    wp_m = compute_win_pct(data["mens_compact"])
+    wp_w = compute_win_pct(data["womens_compact"])
+    massey_lookup = compute_massey_ranks()
+    eff_m = compute_efficiency_stats(data["mens_detailed"])
+    eff_w = compute_efficiency_stats(data["womens_detailed"])
+    road_m = compute_road_record(data["mens_compact"])
+    road_w = compute_road_record(data["womens_compact"])
+    close_m = compute_close_game_record(data["mens_compact"])
+    close_w = compute_close_game_record(data["womens_compact"])
+    conf_m, conf_w = compute_conf_tourney_record()
+    streak_m = compute_win_streak(data["mens_compact"])
+    streak_w = compute_win_streak(data["womens_compact"])
+    power_m = compute_power_conf("M")
+    power_w = compute_power_conf("W")
+    last_n_m = compute_last_n_stats(data["mens_detailed"])
+    last_n_w = compute_last_n_stats(data["womens_detailed"])
+
+    print("  Building training data (all seasons)...")
+    train_df = build_training_data(
+        data, elo_m, elo_w, stats_m, stats_w, seeds_m, seeds_w, wp_m, wp_w,
+        massey_lookup, eff_m, eff_w, road_m, road_w, close_m, close_w,
+        conf_m, conf_w, streak_m, streak_w, power_m, power_w, last_n_m, last_n_w
+    )
+    all_feature_cols = get_feature_cols(train_df)
+
+    # Feature selection: top 45% by XGB importance on full data
+    n_keep = max(int(len(all_feature_cols) * 0.45), 5)
+    print(f"  Feature selection: keeping {n_keep}/{len(all_feature_cols)} features...")
+    sel_model = xgb.XGBClassifier(**XGB_PARAMS)
+    sel_model.fit(train_df[all_feature_cols], train_df["target"],
+                  sample_weight=train_df["weight"], verbose=False)
+    importances = sel_model.feature_importances_
+    imp_order = np.argsort(importances)[::-1]
+    feature_cols = [all_feature_cols[i] for i in imp_order[:n_keep]]
+
+    # Train XGB on selected features
+    print("  Training XGBoost...")
+    xgb_model = xgb.XGBClassifier(**XGB_PARAMS)
+    xgb_model.fit(train_df[feature_cols], train_df["target"],
+                  sample_weight=train_df["weight"], verbose=False)
+
+    # Train LightGBM on selected features
+    print("  Training LightGBM...")
+    lgb_model = lgb.LGBMClassifier(
+        objective="binary", max_depth=5, learning_rate=0.03, n_estimators=800,
+        subsample=0.7, colsample_bytree=0.7, min_child_weight=5,
+        reg_alpha=0.3, reg_lambda=2.0, num_leaves=31, verbose=-1,
+    )
+    lgb_model.fit(train_df[feature_cols], train_df["target"],
+                  sample_weight=train_df["weight"])
+
+    # Seed prior from all historical tournament data
+    print("  Computing seed priors...")
+    seed_prior = {}
+    all_hist_tourney = pd.concat([data["mens_tourney"], data["womens_tourney"]], ignore_index=True)
+    seeds_look_m, _, _ = _make_lookups(seeds_m, stats_m, wp_m)
+    seeds_look_w_tmp, _, _ = _make_lookups(seeds_w, stats_w, wp_w)
+    all_seeds = {**seeds_look_m, **seeds_look_w_tmp}
+    seed_records = {}
+    for _, g in all_hist_tourney.iterrows():
+        s = int(g["Season"])
+        w_id, l_id = int(g["WTeamID"]), int(g["LTeamID"])
+        t1, t2 = min(w_id, l_id), max(w_id, l_id)
+        s1 = all_seeds.get((s, t1), None)
+        s2 = all_seeds.get((s, t2), None)
+        if s1 is not None and s2 is not None:
+            key = (int(s1), int(s2))
+            seed_records.setdefault(key, [0, 0])
+            seed_records[key][1] += 1
+            if t1 == w_id:
+                seed_records[key][0] += 1
+    for k, (w, t) in seed_records.items():
+        seed_prior[k] = w / t if t > 0 else 0.5
+
+    saved = {
+        "xgb_model": xgb_model,
+        "lgb_model": lgb_model,
+        "feature_cols": feature_cols,
+        "all_feature_cols": all_feature_cols,
+        "seed_prior": seed_prior,
+        "blend_alpha": 0.60,
+        "xgb_weight": 0.70,
+    }
+    joblib.dump(saved, model_path)
+    print(f"  Saved model to {model_path} ({len(feature_cols)} features)")
+    return saved
+
+
 # ── Main ─────────────────────────────────────────────────────────────────────
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--save", action="store_true", help="Save trained model to model.joblib after CV")
+    args = parser.parse_args()
+
     t0 = time.time()
 
     print("Loading data...")
@@ -794,3 +899,7 @@ if __name__ == "__main__":
     print(f"val_logloss:      {mean_ll:.6f}")
     print(f"per_fold:         {per_fold}")
     print(f"total_seconds:    {total_seconds:.1f}")
+
+    if args.save:
+        print("\nSaving full model...")
+        train_and_save(data)
