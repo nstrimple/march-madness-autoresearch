@@ -162,6 +162,34 @@ def compute_close_game_record(compact_results, margin=5):
     return lookup
 
 
+# ── Conference Tournament Results ──────────────────────────────────────────
+def compute_conf_tourney_record():
+    """Compute conference tournament win count per team per season."""
+    try:
+        df_m = pd.read_csv("MConferenceTourneyGames.csv")
+        df_w = pd.read_csv("WConferenceTourneyGames.csv")
+    except FileNotFoundError:
+        return {}, {}
+
+    m_lookup, w_lookup = {}, {}
+    for df, lookup in [(df_m, m_lookup), (df_w, w_lookup)]:
+        wins = df.groupby(["Season", "WTeamID"]).size().reset_index(name="conf_tourney_wins")
+        wins.columns = ["Season", "TeamID", "conf_tourney_wins"]
+        games_w = df.groupby(["Season", "WTeamID"]).size().reset_index(name="g")
+        games_w.columns = ["Season", "TeamID", "g"]
+        games_l = df.groupby(["Season", "LTeamID"]).size().reset_index(name="g")
+        games_l.columns = ["Season", "TeamID", "g"]
+        games = pd.concat([games_w, games_l]).groupby(["Season", "TeamID"])["g"].sum().reset_index()
+        merged = wins.merge(games, on=["Season", "TeamID"], how="outer").fillna(0)
+        merged["conf_tourney_wpct"] = merged["conf_tourney_wins"] / merged["g"].clip(lower=1)
+        for _, r in merged.iterrows():
+            lookup[(int(r["Season"]), int(r["TeamID"]))] = {
+                "conf_tourney_wins": r["conf_tourney_wins"],
+                "conf_tourney_wpct": r["conf_tourney_wpct"],
+            }
+    return m_lookup, w_lookup
+
+
 # ── Massey Ordinals ─────────────────────────────────────────────────────────
 ELITE_SYSTEMS = ["POM", "SAG", "MOR", "COL", "BPI", "RPI"]
 
@@ -299,7 +327,7 @@ def _update_elo(elo, row):
 
 
 # ── Feature Engineering ──────────────────────────────────────────────────────
-def _build_feature_row(season, t1, t2, elo_snapshot, seeds_lookup, stats_lookup, winpct_lookup, is_mens, massey_lookup=None, eff_lookup=None, road_lookup=None, close_lookup=None):
+def _build_feature_row(season, t1, t2, elo_snapshot, seeds_lookup, stats_lookup, winpct_lookup, is_mens, massey_lookup=None, eff_lookup=None, road_lookup=None, close_lookup=None, conf_tourney_lookup=None):
     """Build a single feature vector for a T1 vs T2 matchup."""
     row = {"Season": season, "T1": t1, "T2": t2, "is_mens": int(is_mens)}
 
@@ -384,11 +412,20 @@ def _build_feature_row(season, t1, t2, elo_snapshot, seeds_lookup, stats_lookup,
         row["T2_close_pct"] = close_lookup.get((season, t2), 0.5)
         row["close_pct_diff"] = row["T1_close_pct"] - row["T2_close_pct"]
 
+    # Conference tournament results
+    if conf_tourney_lookup is not None:
+        t1_ct = conf_tourney_lookup.get((season, t1), {})
+        t2_ct = conf_tourney_lookup.get((season, t2), {})
+        for col in ["conf_tourney_wins", "conf_tourney_wpct"]:
+            row[f"T1_{col}"] = t1_ct.get(col, 0)
+            row[f"T2_{col}"] = t2_ct.get(col, 0)
+            row[f"{col}_diff"] = row[f"T1_{col}"] - row[f"T2_{col}"]
+
     return row
 
 
 # ── Training Data Construction ───────────────────────────────────────────────
-def build_training_data(data, elo_m, elo_w, stats_m, stats_w, seeds_m, seeds_w, wp_m, wp_w, massey_lookup=None, eff_m=None, eff_w=None, road_m=None, road_w=None, close_m=None, close_w=None):
+def build_training_data(data, elo_m, elo_w, stats_m, stats_w, seeds_m, seeds_w, wp_m, wp_w, massey_lookup=None, eff_m=None, eff_w=None, road_m=None, road_w=None, close_m=None, close_w=None, conf_m=None, conf_w=None):
     """Build training matrix from regular season + tournament games for both genders."""
     seeds_look_m, stats_look_m, wp_look_m = _make_lookups(seeds_m, stats_m, wp_m)
     seeds_look_w, stats_look_w, wp_look_w = _make_lookups(seeds_w, stats_w, wp_w)
@@ -404,6 +441,7 @@ def build_training_data(data, elo_m, elo_w, stats_m, stats_w, seeds_m, seeds_w, 
         eff_look = eff_look_m if label else eff_look_w
         road_look = road_m if label else road_w
         close_look = close_m if label else close_w
+        conf_look = conf_m if label else conf_w
 
         compact = data[f"{gender}_compact"]
         for _, g in compact.iterrows():
@@ -412,7 +450,7 @@ def build_training_data(data, elo_m, elo_w, stats_m, stats_w, seeds_m, seeds_w, 
             t1, t2 = min(w_id, l_id), max(w_id, l_id)
             target = 1.0 if t1 == w_id else 0.0
 
-            row = _build_feature_row(s, t1, t2, elo_snap, seeds_look, stats_look, wp_look, label, massey_lookup, eff_look, road_look, close_look)
+            row = _build_feature_row(s, t1, t2, elo_snap, seeds_look, stats_look, wp_look, label, massey_lookup, eff_look, road_look, close_look, conf_look)
             row["target"] = target
             row["weight"] = 1.0
             rows.append(row)
@@ -424,7 +462,7 @@ def build_training_data(data, elo_m, elo_w, stats_m, stats_w, seeds_m, seeds_w, 
             t1, t2 = min(w_id, l_id), max(w_id, l_id)
             target = 1.0 if t1 == w_id else 0.0
 
-            row = _build_feature_row(s, t1, t2, elo_snap, seeds_look, stats_look, wp_look, label, massey_lookup, eff_look, road_look, close_look)
+            row = _build_feature_row(s, t1, t2, elo_snap, seeds_look, stats_look, wp_look, label, massey_lookup, eff_look, road_look, close_look, conf_look)
             row["target"] = target
             row["weight"] = TOURNEY_WEIGHT
             row["is_tourney"] = 1
@@ -503,9 +541,12 @@ def train_and_predict(data):
     close_m = compute_close_game_record(data["mens_compact"])
     close_w = compute_close_game_record(data["womens_compact"])
 
+    print("  Computing conference tournament results...")
+    conf_m, conf_w = compute_conf_tourney_record()
+
     print("  Building training data...")
     train_df = build_training_data(
-        data, elo_m, elo_w, stats_m, stats_w, seeds_m, seeds_w, wp_m, wp_w, massey_lookup, eff_m, eff_w, road_m, road_w, close_m, close_w
+        data, elo_m, elo_w, stats_m, stats_w, seeds_m, seeds_w, wp_m, wp_w, massey_lookup, eff_m, eff_w, road_m, road_w, close_m, close_w, conf_m, conf_w
     )
     feature_cols = get_feature_cols(train_df)
     print(f"  Samples: {len(train_df):,}  Features: {len(feature_cols)}")
