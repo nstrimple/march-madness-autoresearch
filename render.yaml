@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: bracket-tracker
+    runtime: python
+    buildCommand: pip install -r requirements.txt && playwright install chromium --with-deps
+    startCommand: gunicorn app:app --timeout 120 --workers 2
+    envVars:
+      - key: SECRET_KEY
+        generateValue: true
+    # Free tier is fine for a family pool — it sleeps after inactivity
+    # but wakes up on first request (takes ~30s extra on first load)
