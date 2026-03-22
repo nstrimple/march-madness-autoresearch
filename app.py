@@ -16,7 +16,6 @@ from bracket_scraper import analyze_differentials, ROUND_NAMES, ROUND_POINTS
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", os.urandom(24))
 
-PLAYWRIGHT_ARGS = ["--no-sandbox", "--disable-dev-shm-usage"]
 USER_AGENT = (
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
     "AppleWebKit/537.36 (KHTML, like Gecko) "
@@ -94,7 +93,7 @@ def _run_cbs(email, password, pool_url, bracket_name):
     from playwright.sync_api import sync_playwright
 
     with sync_playwright() as p:
-        browser = p.chromium.launch(headless=True, args=PLAYWRIGHT_ARGS)
+        browser = p.chromium.launch(headless=True)
         context = browser.new_context(user_agent=USER_AGENT)
         page = context.new_page()
         try:
@@ -150,7 +149,7 @@ def _run_espn(email, password, pool_url, bracket_name):
     from playwright.sync_api import sync_playwright
 
     with sync_playwright() as p:
-        browser = p.chromium.launch(headless=True, args=PLAYWRIGHT_ARGS)
+        browser = p.chromium.launch(headless=True)
         context = browser.new_context(user_agent=USER_AGENT)
         page = context.new_page()
         try:
@@ -228,5 +227,5 @@ def _build_results(my_entry_name, pool_size, my_picks, all_entries_data):
 
 
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 5000))
-    app.run(host="0.0.0.0", port=port, debug=False)
+    port = int(os.environ.get("PORT", 8080))
+    app.run(host="127.0.0.1", port=port, debug=False)

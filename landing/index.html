@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Bracket Tracker — Download for Mac</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #f0f4f8;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 2rem 1rem;
+    }
+
+    .hero {
+      text-align: center;
+      margin-bottom: 2rem;
+    }
+    .hero h1 { font-size: 2.2rem; color: #1a202c; margin-bottom: 0.5rem; }
+    .hero .ball { font-size: 3rem; }
+    .hero p {
+      color: #4a5568;
+      font-size: 1.1rem;
+      max-width: 520px;
+      line-height: 1.6;
+    }
+
+    .card {
+      background: white;
+      border-radius: 16px;
+      padding: 2rem;
+      width: 100%;
+      max-width: 520px;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.08);
+      margin-bottom: 1.5rem;
+    }
+
+    .download-btn {
+      display: block;
+      width: 100%;
+      padding: 1rem;
+      background: #2b6cb0;
+      color: white;
+      border: none;
+      border-radius: 12px;
+      font-size: 1.2rem;
+      font-weight: 700;
+      cursor: pointer;
+      text-align: center;
+      text-decoration: none;
+      transition: background 0.2s;
+      margin-bottom: 0.75rem;
+    }
+    .download-btn:hover { background: #2c5282; }
+    .download-btn:active { background: #1a365d; }
+
+    .download-note {
+      text-align: center;
+      font-size: 0.85rem;
+      color: #718096;
+    }
+
+    .steps {
+      margin-top: 0.5rem;
+    }
+    .steps h2 {
+      font-size: 1.15rem;
+      color: #1a202c;
+      margin-bottom: 1rem;
+    }
+
+    .step {
+      display: flex;
+      align-items: flex-start;
+      gap: 1rem;
+      margin-bottom: 1.25rem;
+    }
+    .step-num {
+      flex-shrink: 0;
+      width: 32px;
+      height: 32px;
+      background: #ebf4ff;
+      color: #2b6cb0;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      font-size: 0.95rem;
+    }
+    .step-text {
+      color: #2d3748;
+      font-size: 0.95rem;
+      line-height: 1.5;
+    }
+    .step-text strong { color: #1a202c; }
+    .step-text code {
+      background: #edf2f7;
+      padding: 0.15em 0.4em;
+      border-radius: 4px;
+      font-family: monospace;
+      font-size: 0.88em;
+    }
+
+    .warning-box {
+      background: #fffbeb;
+      border: 1px solid #f6e05e;
+      border-radius: 10px;
+      padding: 1rem 1.25rem;
+      margin-top: 0.5rem;
+      color: #744210;
+      font-size: 0.88rem;
+      line-height: 1.5;
+    }
+    .warning-box strong { color: #975a16; }
+
+    .info-section {
+      max-width: 520px;
+      width: 100%;
+    }
+
+    details {
+      background: white;
+      border-radius: 12px;
+      padding: 1rem 1.25rem;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+      margin-bottom: 0.75rem;
+    }
+    summary {
+      font-weight: 600;
+      cursor: pointer;
+      color: #2d3748;
+      font-size: 0.95rem;
+      list-style: none;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    summary::-webkit-details-marker { display: none; }
+    summary::after { content: "+"; font-size: 1.2rem; color: #718096; }
+    details[open] summary::after { content: "\2212"; }
+    .help-body {
+      margin-top: 0.75rem;
+      color: #4a5568;
+      font-size: 0.9rem;
+      line-height: 1.6;
+    }
+
+    .footer {
+      margin-top: 2rem;
+      font-size: 0.8rem;
+      color: #a0aec0;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="hero">
+    <div class="ball">🏀</div>
+    <h1>Bracket Tracker</h1>
+    <p>See which remaining tournament games matter most for <em>your</em> bracket — where your picks differ from everyone else in your pool.</p>
+  </div>
+
+  <!-- Download card -->
+  <div class="card">
+    <a class="download-btn" href="https://github.com/nstrimple/march-madness-autoresearch/releases/latest/download/BracketTracker-mac.zip">
+      Download for Mac
+    </a>
+    <p class="download-note">Requires macOS 10.15 (Catalina) or later</p>
+  </div>
+
+  <!-- Setup steps -->
+  <div class="card steps">
+    <h2>Setup (takes 2-3 minutes)</h2>
+
+    <div class="step">
+      <div class="step-num">1</div>
+      <div class="step-text">
+        <strong>Unzip</strong> the downloaded file. You'll get a <code>BracketTracker</code> folder.
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">2</div>
+      <div class="step-text">
+        <strong>Double-click</strong> <code>install.command</code> to install.
+        A Terminal window will open and set everything up.
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">3</div>
+      <div class="step-text">
+        <strong>Double-click</strong> <code>Bracket Tracker.command</code> to start the app.
+        Your browser will open automatically.
+      </div>
+    </div>
+
+    <div class="warning-box">
+      <strong>macOS security warning?</strong> If you see "cannot be opened because it is from an unidentified developer", right-click the file, choose <strong>Open</strong>, then click <strong>Open</strong> again in the dialog.
+    </div>
+  </div>
+
+  <!-- FAQ -->
+  <div class="info-section">
+    <details>
+      <summary>What does this tool do?</summary>
+      <div class="help-body">
+        It logs into your CBS Sports or ESPN bracket pool, reads everyone's picks,
+        and finds the games where <strong>your pick is different from the majority</strong>.
+        Those are the games that will swing your standings the most — your high-leverage games.
+      </div>
+    </details>
+
+    <details>
+      <summary>Is my password safe?</summary>
+      <div class="help-body">
+        Yes. The app runs entirely on your computer. Your credentials are used only
+        to log in and fetch bracket data — they are never sent anywhere else,
+        never stored, and never logged.
+      </div>
+    </details>
+
+    <details>
+      <summary>What are the system requirements?</summary>
+      <div class="help-body">
+        macOS 10.15 (Catalina) or later. The installer will download a browser
+        component (~200 MB) on first run. You'll need about 500 MB of free disk space total.
+      </div>
+    </details>
+
+    <details>
+      <summary>How do I stop the app?</summary>
+      <div class="help-body">
+        Close the Terminal window that appeared when you launched the app,
+        or press Control+C in that window.
+      </div>
+    </details>
+  </div>
+
+  <p class="footer">Bracket Tracker — runs locally on your Mac</p>
+
+</body>
+</html>
