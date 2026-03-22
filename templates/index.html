@@ -21,15 +21,8 @@
       text-align: center;
       margin-bottom: 2rem;
     }
-
-    .hero h1 {
-      font-size: 2rem;
-      color: #1a202c;
-      margin-bottom: 0.5rem;
-    }
-
+    .hero h1 { font-size: 2rem; color: #1a202c; margin-bottom: 0.5rem; }
     .hero .ball { font-size: 2.5rem; }
-
     .hero p {
       color: #4a5568;
       font-size: 1.05rem;
@@ -46,6 +39,35 @@
       box-shadow: 0 4px 24px rgba(0,0,0,0.08);
     }
 
+    /* ── Platform toggle ── */
+    .platform-toggle {
+      display: flex;
+      background: #edf2f7;
+      border-radius: 10px;
+      padding: 4px;
+      margin-bottom: 1.5rem;
+      gap: 4px;
+    }
+    .platform-toggle label {
+      flex: 1;
+      text-align: center;
+      cursor: pointer;
+      padding: 0.55rem;
+      border-radius: 8px;
+      font-size: 0.95rem;
+      font-weight: 600;
+      color: #718096;
+      transition: background 0.15s, color 0.15s;
+      user-select: none;
+    }
+    .platform-toggle input[type="radio"] { display: none; }
+    .platform-toggle input[type="radio"]:checked + label {
+      background: white;
+      color: #1a202c;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.12);
+    }
+    .platform-toggle label .logo { margin-right: 0.3em; }
+
     .error-box {
       background: #fff5f5;
       border: 1px solid #feb2b2;
@@ -57,9 +79,7 @@
       line-height: 1.5;
     }
 
-    .field {
-      margin-bottom: 1.25rem;
-    }
+    .field { margin-bottom: 1.25rem; }
 
     label {
       display: block;
@@ -68,7 +88,6 @@
       margin-bottom: 0.35rem;
       font-size: 0.95rem;
     }
-
     .hint {
       font-size: 0.8rem;
       color: #718096;
@@ -89,10 +108,7 @@
       transition: border-color 0.2s;
       outline: none;
     }
-
-    input:focus {
-      border-color: #4299e1;
-    }
+    input:focus { border-color: #4299e1; }
 
     .submit-btn {
       width: 100%;
@@ -107,14 +123,9 @@
       transition: background 0.2s;
       margin-top: 0.5rem;
     }
-
-    .submit-btn:hover { background: #2c5282; }
+    .submit-btn:hover  { background: #2c5282; }
     .submit-btn:active { background: #1a365d; }
-
-    .submit-btn:disabled {
-      background: #a0aec0;
-      cursor: not-allowed;
-    }
+    .submit-btn:disabled { background: #a0aec0; cursor: not-allowed; }
 
     .loading {
       display: none;
@@ -122,25 +133,30 @@
       margin-top: 1.5rem;
       color: #4a5568;
     }
-
     .loading .spinner {
-      width: 36px;
-      height: 36px;
+      width: 36px; height: 36px;
       border: 4px solid #e2e8f0;
       border-top-color: #2b6cb0;
       border-radius: 50%;
       animation: spin 0.8s linear infinite;
       margin: 0 auto 0.75rem;
     }
-
     @keyframes spin { to { transform: rotate(360deg); } }
 
+    .security-note {
+      font-size: 0.78rem;
+      color: #718096;
+      text-align: center;
+      margin-top: 1rem;
+      line-height: 1.5;
+    }
+
+    /* ── Help accordion ── */
     .help-section {
       margin-top: 2rem;
       max-width: 480px;
       width: 100%;
     }
-
     details {
       background: white;
       border-radius: 12px;
@@ -148,7 +164,6 @@
       box-shadow: 0 2px 12px rgba(0,0,0,0.06);
       margin-bottom: 0.75rem;
     }
-
     summary {
       font-weight: 600;
       cursor: pointer;
@@ -159,27 +174,17 @@
       justify-content: space-between;
       align-items: center;
     }
-
     summary::-webkit-details-marker { display: none; }
-
-    summary::after {
-      content: "+";
-      font-size: 1.2rem;
-      color: #718096;
-    }
-
+    summary::after { content: "+"; font-size: 1.2rem; color: #718096; }
     details[open] summary::after { content: "−"; }
-
     .help-body {
       margin-top: 0.75rem;
       color: #4a5568;
       font-size: 0.9rem;
       line-height: 1.6;
     }
-
     .help-body ol { padding-left: 1.2rem; }
     .help-body li { margin-bottom: 0.35rem; }
-
     .help-body code {
       background: #edf2f7;
       padding: 0.1em 0.35em;
@@ -188,16 +193,12 @@
       font-size: 0.85em;
     }
 
-    .security-note {
-      font-size: 0.78rem;
-      color: #718096;
-      text-align: center;
-      margin-top: 1rem;
-      line-height: 1.5;
-    }
+    /* Platform-specific help blocks */
+    .help-cbs, .help-espn { display: none; }
   </style>
 </head>
 <body>
+
   <div class="hero">
     <div class="ball">🏀</div>
     <h1>Bracket Tracker</h1>
@@ -211,55 +212,58 @@
 
     <form id="mainForm" method="POST" action="/analyze" onsubmit="startLoading()">
 
+      <!-- Platform selector -->
+      <div class="platform-toggle">
+        <input type="radio" name="platform" id="plat-cbs" value="cbs"
+          {% if not prefill or prefill.platform != 'espn' %}checked{% endif %}
+          onchange="setPlatform('cbs')">
+        <label for="plat-cbs"><span class="logo">📺</span> CBS Sports</label>
+
+        <input type="radio" name="platform" id="plat-espn" value="espn"
+          {% if prefill and prefill.platform == 'espn' %}checked{% endif %}
+          onchange="setPlatform('espn')">
+        <label for="plat-espn"><span class="logo">🏈</span> ESPN</label>
+      </div>
+
+      <!-- Email -->
       <div class="field">
-        <label for="email">CBS Sports Email</label>
-        <input
-          type="email"
-          id="email"
-          name="email"
+        <label for="email" id="email-label">CBS Sports Email</label>
+        <input type="email" id="email" name="email"
           placeholder="you@example.com"
           value="{{ prefill.email if prefill else '' }}"
-          required
-          autocomplete="email"
-        >
+          required autocomplete="email">
       </div>
 
+      <!-- Password -->
       <div class="field">
-        <label for="password">CBS Sports Password</label>
-        <input
-          type="password"
-          id="password"
-          name="password"
-          placeholder="Your CBS password"
-          required
-          autocomplete="current-password"
-        >
+        <label for="password" id="password-label">CBS Sports Password</label>
+        <input type="password" id="password" name="password"
+          placeholder="Your password"
+          required autocomplete="current-password">
       </div>
 
+      <!-- Pool URL -->
       <div class="field">
-        <label for="pool_url">Your Pool's Standings URL</label>
-        <p class="hint">Go to your CBS bracket pool → click "Standings" → copy the URL from your browser's address bar.</p>
-        <input
-          type="url"
-          id="pool_url"
-          name="pool_url"
+        <label for="pool_url" id="pool-label">Pool / Group URL</label>
+        <p class="hint" id="pool-hint">
+          Go to your CBS bracket pool → click <strong>Standings</strong> → copy the URL.
+        </p>
+        <input type="url" id="pool_url" name="pool_url"
           placeholder="https://www.cbssports.com/collegebasketball/brackets/pools/..."
           value="{{ prefill.pool_url if prefill else '' }}"
-          required
-        >
+          required id="pool-input">
       </div>
 
+      <!-- Bracket name -->
       <div class="field">
-        <label for="bracket_name">Your Bracket's Name</label>
-        <p class="hint">The name of your entry as it shows up in the standings list.</p>
-        <input
-          type="text"
-          id="bracket_name"
-          name="bracket_name"
+        <label for="bracket_name" id="bracket-label">Your Bracket's Name</label>
+        <p class="hint" id="bracket-hint">
+          The name of your entry as it appears in the standings list.
+        </p>
+        <input type="text" id="bracket_name" name="bracket_name"
           placeholder="e.g. Dad's Bracket"
           value="{{ prefill.bracket_name if prefill else '' }}"
-          required
-        >
+          required>
       </div>
 
       <button type="submit" class="submit-btn" id="submitBtn">
@@ -267,28 +271,46 @@
       </button>
 
       <p class="security-note">
-        Your password is used only to log in and fetch your bracket data.<br>
+        Your password is used only to log in and fetch your bracket.<br>
         It is never stored or logged.
       </p>
     </form>
 
     <div class="loading" id="loading">
       <div class="spinner"></div>
-      <p>Logging in and reading your pool...<br><small>This takes about 30–60 seconds.</small></p>
+      <p id="loading-msg">Logging in and reading your pool…<br><small>This takes about 30–60 seconds.</small></p>
     </div>
   </div>
 
+  <!-- Help accordion -->
   <div class="help-section">
-    <details>
-      <summary>How do I find my Pool Standings URL?</summary>
+
+    <!-- CBS help -->
+    <details class="help-cbs">
+      <summary>How do I find my CBS Pool Standings URL?</summary>
       <div class="help-body">
         <ol>
           <li>Log in to <strong>cbssports.com</strong></li>
           <li>Click <strong>Fantasy & Games → College Basketball → Bracket Games</strong></li>
           <li>Click your pool name</li>
           <li>Click the <strong>Standings</strong> tab</li>
-          <li>Copy the URL from your browser — it should look like:<br>
+          <li>Copy the URL — it looks like:<br>
             <code>cbssports.com/collegebasketball/brackets/pools/12345678/standings/</code>
+          </li>
+        </ol>
+      </div>
+    </details>
+
+    <!-- ESPN help -->
+    <details class="help-espn">
+      <summary>How do I find my ESPN Group URL?</summary>
+      <div class="help-body">
+        <ol>
+          <li>Log in to <strong>espn.com</strong></li>
+          <li>Go to <strong>Tournament Challenge</strong> (under Games)</li>
+          <li>Click your group name in the left panel</li>
+          <li>Copy the URL from your browser — it should contain <code>groupID=</code>:<br>
+            <code>fantasy.espn.com/tournament-challenge-bracket/2026/en/group?groupID=XXXXXXX</code>
           </li>
         </ol>
       </div>
@@ -297,33 +319,78 @@
     <details>
       <summary>How do I find my bracket's name?</summary>
       <div class="help-body">
-        On the Standings page, look for your name in the list.
-        The entry name is usually something you set when you created the bracket.
-        It might be your name, a nickname, or a team name.
+        On the standings/group page, look for your name in the list.
+        It might be your name, a nickname, or a team name you chose when you created the bracket.
         Copy it exactly as it appears.
       </div>
     </details>
 
     <details>
-      <summary>What does this tool actually show me?</summary>
+      <summary>What does this tool show me?</summary>
       <div class="help-body">
-        It looks at every game left in the tournament and finds the ones where
-        <strong>your pick is different from most people in your pool</strong>.
-        Those are the games that can swing your standings the most.
+        It finds every game left in the tournament where <strong>your pick is different
+        from what others in your pool picked</strong>. Those are the games that can
+        swing your standings the most.
         <br><br>
-        For example: if you picked Duke to win the Elite 8 but 7 out of 8 other
-        people in your pool picked Kentucky — that's a high-leverage game.
-        If Duke wins, you jump ahead. If Kentucky wins, you fall behind.
+        For example: if you picked Duke to win the Elite 8 but 7 of 8 others picked
+        Kentucky — that's a high-leverage game. Duke wins → you jump ahead.
+        Kentucky wins → you fall behind.
       </div>
     </details>
   </div>
 
   <script>
-    function startLoading() {
-      document.getElementById('submitBtn').disabled = true;
-      document.getElementById('submitBtn').textContent = 'Loading...';
-      document.getElementById('loading').style.display = 'block';
+    // Apply the right labels/hints when the platform toggle changes
+    var config = {
+      cbs: {
+        emailLabel: "CBS Sports Email",
+        passwordLabel: "CBS Sports Password",
+        poolLabel: "Pool Standings URL",
+        poolHint: 'Go to your CBS bracket pool → click <strong>Standings</strong> → copy the URL.',
+        poolPlaceholder: "https://www.cbssports.com/collegebasketball/brackets/pools/...",
+        bracketHint: "The name of your entry as it appears in the CBS standings list.",
+        loadingMsg: "Logging into CBS and reading your pool\u2026<br><small>This takes about 30\u201360 seconds.</small>",
+        helpClass: "help-cbs",
+      },
+      espn: {
+        emailLabel: "ESPN Email",
+        passwordLabel: "ESPN Password",
+        poolLabel: "ESPN Group URL",
+        poolHint: 'Go to your ESPN Tournament Challenge group → copy the URL (it contains <code>groupID=</code>).',
+        poolPlaceholder: "https://fantasy.espn.com/tournament-challenge-bracket/2026/en/group?groupID=...",
+        bracketHint: "The name of your entry as it appears in your ESPN group standings.",
+        loadingMsg: "Logging into ESPN and reading your group\u2026<br><small>This takes about 30\u201360 seconds.</small>",
+        helpClass: "help-espn",
+      },
+    };
+
+    function setPlatform(plat) {
+      var c = config[plat];
+      document.getElementById("email-label").textContent    = c.emailLabel;
+      document.getElementById("password-label").textContent = c.passwordLabel;
+      document.getElementById("pool-label").textContent     = c.poolLabel;
+      document.getElementById("pool-hint").innerHTML        = c.poolHint;
+      document.getElementById("pool_url").placeholder       = c.poolPlaceholder;
+      document.getElementById("bracket-hint").textContent   = c.bracketHint;
+      document.getElementById("loading-msg").innerHTML      = c.loadingMsg;
+
+      // Toggle help blocks
+      document.querySelectorAll(".help-cbs, .help-espn").forEach(function(el) {
+        el.style.display = "none";
+      });
+      var helpEl = document.querySelector("." + c.helpClass);
+      if (helpEl) helpEl.style.display = "block";
     }
+
+    function startLoading() {
+      document.getElementById("submitBtn").disabled    = true;
+      document.getElementById("submitBtn").textContent = "Loading…";
+      document.getElementById("loading").style.display = "block";
+    }
+
+    // Init on page load
+    var checked = document.querySelector('input[name="platform"]:checked');
+    setPlatform(checked ? checked.value : "cbs");
   </script>
 </body>
 </html>
