@@ -5,6 +5,7 @@ Supports both CBS Sports and ESPN Tournament Challenge pools.
 """
 
 import os
+import platform
 import time
 import traceback
 from collections import defaultdict
@@ -16,9 +17,15 @@ from bracket_scraper import analyze_differentials, ROUND_NAMES, ROUND_POINTS
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", os.urandom(24))
 
-PLAYWRIGHT_ARGS = ["--no-sandbox", "--disable-dev-shm-usage"]
+# On macOS (local), Chromium runs without special flags.
+# On Linux (cloud/CI), --no-sandbox is required.
+if platform.system() == "Darwin":
+    PLAYWRIGHT_ARGS = []
+else:
+    PLAYWRIGHT_ARGS = ["--no-sandbox", "--disable-dev-shm-usage"]
+
 USER_AGENT = (
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
     "AppleWebKit/537.36 (KHTML, like Gecko) "
     "Chrome/120.0.0.0 Safari/537.36"
 )

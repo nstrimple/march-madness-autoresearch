@@ -1,164 +1,146 @@
-# Hosting Setup Guide
+# Running Bracket Tracker on Your Mac
 
-This guide walks you through putting the Bracket Tracker web app online so
-family members can use it at a sharable URL — no install required on their end.
+This guide walks you through running the Bracket Tracker app locally on your Mac.
+The app runs entirely on your computer — no accounts, no cloud servers.
 
-We'll use **Render** (render.com). It's free for this use case and has a
-one-click deploy from GitHub. The whole setup takes about 10 minutes.
+**Why local instead of a hosted URL?**
+CBS Sports and ESPN sometimes block requests from cloud server IPs. Running
+locally uses your own internet connection, which works reliably every time.
 
----
-
-## Prerequisites
-
-You need two things before starting:
-
-1. **This repo on GitHub.** If it's already there, skip ahead.
-   If not — go to [github.com](https://github.com), create a new repository,
-   then push this folder to it:
-   ```
-   git remote add origin https://github.com/YOUR_USERNAME/YOUR_REPO_NAME.git
-   git push -u origin main
-   ```
-
-2. **A free Render account.** Sign up at [render.com](https://render.com) —
-   you can use your GitHub account to log in, which makes the next steps easier.
+> Currently macOS only. Windows/Linux support coming later.
 
 ---
 
-## Step 1 — Connect your GitHub repo to Render
+## Requirements
 
-1. Log in to [render.com](https://render.com)
-2. Click **New +** in the top-right corner
-3. Choose **Web Service**
-4. Click **Connect account** next to GitHub (if you haven't already)
-   - Authorize Render to access your repositories
-5. Find your bracket tracker repo in the list and click **Connect**
+- A Mac running macOS 12 (Monterey) or later
+- An internet connection (to download setup tools and scrape bracket data)
+- ~500 MB of free disk space (for Python, packages, and Chromium)
 
 ---
 
-## Step 2 — Configure the service
+## Step 1 — Download the app
 
-Render will read `render.yaml` automatically and pre-fill most settings.
-Verify these values look right before deploying:
+If you received this as a zip file, unzip it anywhere (e.g. your Desktop or
+Documents folder). If you cloned from GitHub, you already have it.
 
-| Setting | Value |
-|---|---|
-| **Name** | `bracket-tracker` (or anything you like) |
-| **Runtime** | Python |
-| **Build Command** | `pip install -r requirements.txt && playwright install chromium --with-deps` |
-| **Start Command** | `gunicorn app:app --timeout 120 --workers 2` |
-| **Instance Type** | Free |
-
-> The build command installs Chromium (the headless browser used for scraping).
-> This is the step that takes the longest the first time (~3-4 minutes).
-
----
-
-## Step 3 — Set the SECRET_KEY environment variable
-
-Render should auto-generate this from `render.yaml`, but double-check:
-
-1. Scroll down to the **Environment Variables** section
-2. Confirm there's a `SECRET_KEY` entry with a value like `Generate`
-3. If it's missing, click **Add Environment Variable**:
-   - Key: `SECRET_KEY`
-   - Value: click **Generate** (Render will create a random secure value)
-
-You don't need to set CBS or ESPN credentials here — users enter those
-themselves in the web form each time they use the app.
-
----
-
-## Step 4 — Deploy
-
-Click **Create Web Service** at the bottom of the page.
-
-Render will:
-1. Pull your code from GitHub
-2. Run the build command (installs Python packages + Chromium)
-3. Start the app with gunicorn
-
-Watch the deploy log scroll by. When you see a line like:
+You should have a folder that looks like this:
 ```
-==> Your service is live 🎉
-```
-…you're done. Render will show you a URL at the top of the page that looks like:
-```
-https://bracket-tracker.onrender.com
+bracket-tracker/
+├── run_mac.sh        ← the launcher (start here)
+├── app.py
+├── requirements.txt
+└── ...
 ```
 
-Copy that URL — that's what you share with family.
-
 ---
 
-## Step 5 — Test it
+## Step 2 — Run it
 
-Open the URL in your browser. You should see the Bracket Tracker form.
-Run through it with your own CBS or ESPN credentials to make sure everything works.
+Open **Terminal** (search for it in Spotlight with ⌘+Space → type "Terminal").
 
-If something goes wrong, click **Logs** in the Render dashboard to see the error output.
-
----
-
-## Sharing with family
-
-Send them the Render URL. That's it. They:
-
-1. Open the link in any browser (phone or computer)
-2. Choose CBS Sports or ESPN
-3. Enter their credentials + pool URL + bracket name
-4. See their results
-
-They don't need to install anything.
-
----
-
-## Important: the free tier "sleeps"
-
-Render's free tier spins down the app after 15 minutes of no traffic.
-The **first person to visit after a sleep period waits about 30–60 extra seconds**
-for the app to wake up — then it's fast.
-
-If that's annoying, you can upgrade to the **Starter** plan ($7/month) to keep
-it always-on. During March Madness you might get a few complaints about the
-slow first load, so it's worth it for a few weeks.
-
----
-
-## Updating the app later
-
-Any time you push new code to GitHub, Render will automatically redeploy.
-You don't need to do anything in the Render dashboard.
-
-```
-# Make your changes, then:
-git add .
-git commit -m "describe your change"
-git push
+Then run:
+```bash
+cd ~/Desktop/bracket-tracker   # adjust path to wherever you put the folder
+bash run_mac.sh
 ```
 
-Render picks it up within a minute or two.
+**The first time you run this**, the script will automatically:
+1. Install Homebrew (Mac's package manager) if you don't have it
+2. Install Python 3.11+ if needed
+3. Create an isolated Python environment for the app
+4. Download all required packages
+5. Download Chromium (~150 MB, one-time only)
+
+This first-time setup takes **3–5 minutes**. After that, launching the app
+takes only a few seconds.
+
+---
+
+## Step 3 — Use the app
+
+Once setup is complete, your browser will open automatically to:
+```
+http://localhost:5000
+```
+
+Fill in the form with your CBS Sports or ESPN credentials and pool info, then
+click **Analyze**. Results appear in about 30–60 seconds depending on pool size.
+
+When you're done, go back to Terminal and press **Ctrl+C** to stop the app.
+
+---
+
+## Running it again later
+
+Just run the same command again:
+```bash
+bash run_mac.sh
+```
+
+The app starts in a few seconds — no reinstall, no waiting.
+
+---
+
+## Sharing with family members
+
+Each person runs the app on their own Mac:
+
+1. Send them the `bracket-tracker` folder (zip it and share via AirDrop, email,
+   iCloud, Google Drive, etc.)
+2. They open Terminal, `cd` to the folder, and run `bash run_mac.sh`
+3. Their browser opens and they use it with their own credentials
+
+Their credentials never leave their computer.
 
 ---
 
 ## Troubleshooting
 
-**The deploy failed during build**
-- Check the build log for the specific error
-- Most common cause: a Python package version conflict. Try removing the
-  version pins from `requirements.txt` and redeploy.
+**"Permission denied" when running the script**
+```bash
+chmod +x run_mac.sh
+bash run_mac.sh
+```
 
-**Login fails for CBS/ESPN on the hosted app but works locally**
-- CBS and ESPN occasionally block requests from cloud server IP ranges
-- For ESPN: see the "cookie mode" note in the code comments (use `espn_s2` +
-  `SWID` cookies instead of email/password)
-- For CBS: try again later — CBS rate-limits scraping from datacenter IPs
+**Homebrew install asks for your password**
+That's normal — Homebrew needs admin access to install to `/usr/local` or
+`/opt/homebrew`. Enter your Mac login password.
 
-**The app times out**
-- Large pools (20+ entries) can take 60-90 seconds to scrape
-- Go to your Render service settings → **Instance Type** → upgrade to at least
-  **Starter** and increase the timeout in the start command to `--timeout 180`
+**"Port 5000 is already in use"**
+Something else is using port 5000. The script detects this and opens the
+existing app. If that doesn't work, quit the other app using port 5000
+(check System Settings → AirPlay Receiver uses 5000 on some Macs — you can
+disable it there) and run the script again.
 
-**I need to change the URL / custom domain**
-- In the Render dashboard, go to your service → **Settings** → **Custom Domain**
-- Add a domain you own (e.g. `brackets.yourdomain.com`) and follow the DNS instructions
+**Login fails for CBS or ESPN**
+- Double-check your email and password
+- Make sure the pool URL is correct (copy it from the pool Standings page)
+- Try logging in to CBS/ESPN in your regular browser first to confirm credentials work
+
+**Chromium won't launch / browser crashes**
+```bash
+# Reinstall Chromium
+source .venv/bin/activate
+playwright install chromium
+```
+
+**The app is slow on first analyze**
+Scraping 10–20 brackets takes 30–60 seconds — that's normal. Larger pools
+(20+ entries) may take up to 2 minutes.
+
+---
+
+## Updating the app
+
+When a new version is available, replace the folder contents with the new files
+and run `bash run_mac.sh` — it will update packages automatically.
+
+---
+
+## Privacy
+
+- Your CBS/ESPN credentials are entered in the form and used only for that
+  session. They are not saved to disk.
+- All scraping happens on your machine via your internet connection.
+- No data is sent to any external server (other than CBS/ESPN to fetch brackets).
