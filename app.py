@@ -69,11 +69,12 @@ def analyze():
         return render_template("results.html", **results)
     except ScraperError as e:
         return render_template("index.html", error=str(e), prefill=request.form)
-    except Exception:
-        app.logger.error(traceback.format_exc())
+    except Exception as e:
+        tb = traceback.format_exc()
+        app.logger.error(tb)
         return render_template(
             "index.html",
-            error="Something went wrong fetching your bracket data. Try again or check your pool URL.",
+            error=f"Error: {e}\n\nTraceback:\n{tb}",
             prefill=request.form,
         )
 
